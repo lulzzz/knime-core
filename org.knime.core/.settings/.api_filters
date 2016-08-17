@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<component id="org.knime.core" version="2">
+    <resource path="src/eclipse/org/knime/core/node/CopyNodePersistor.java" type="org.knime.core.node.CopyNodePersistor">
+        <filter comment="non-used methods" id="338792546">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.CopyNodePersistor"/>
+                <message_argument value="getModelSettingsFailPolicy()"/>
+            </message_arguments>
+        </filter>
+    </resource>
+    <resource path="src/eclipse/org/knime/core/node/FileNodePersistor.java" type="org.knime.core.node.FileNodePersistor">
+        <filter comment="non-used methods" id="338792546">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.FileNodePersistor"/>
+                <message_argument value="getModelSettingsFailPolicy()"/>
+            </message_arguments>
+        </filter>
+    </resource>
+    <resource path="src/eclipse/org/knime/core/node/NodePersistor.java" type="org.knime.core.node.NodePersistor">
+        <filter comment="non-used methods" id="405901410">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.NodePersistor"/>
+                <message_argument value="getModelSettingsFailPolicy()"/>
+            </message_arguments>
+        </filter>
+    </resource>
+    <resource path="src/eclipse/org/knime/core/node/NodeProgressMonitor.java" type="org.knime.core.node.NodeProgressMonitor">
+        <filter id="403804204">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.NodeProgressMonitor"/>
+                <message_argument value="setMessage(Supplier&lt;String&gt;)"/>
+            </message_arguments>
+        </filter>
+        <filter id="403804204">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.NodeProgressMonitor"/>
+                <message_argument value="setProgress(double, Supplier&lt;String&gt;)"/>
+            </message_arguments>
+        </filter>
+    </resource>
+    <resource path="src/eclipse/org/knime/core/node/workflow/FileSingleNodeContainerPersistor.java" type="org.knime.core.node.workflow.FileSingleNodeContainerPersistor">
+        <filter comment="internal &quot;api&quot;" id="338792546">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.workflow.FileSingleNodeContainerPersistor"/>
+                <message_argument value="getModelSettingsFailPolicy()"/>
+            </message_arguments>
+        </filter>
+    </resource>
+    <resource path="src/eclipse/org/knime/core/node/workflow/FlowTryCatchContext.java" type="org.knime.core.node.workflow.FlowTryCatchContext">
+        <filter id="1141899266">
+            <message_arguments>
+                <message_argument value="3.1"/>
+                <message_argument value="3.2"/>
+                <message_argument value="ERROR_FLAG"/>
+            </message_arguments>
+        </filter>
+        <filter id="1141899266">
+            <message_arguments>
+                <message_argument value="3.1"/>
+                <message_argument value="3.2"/>
+                <message_argument value="ERROR_NODE"/>
+            </message_arguments>
+        </filter>
+        <filter id="1141899266">
+            <message_arguments>
+                <message_argument value="3.1"/>
+                <message_argument value="3.2"/>
+                <message_argument value="ERROR_REASON"/>
+            </message_arguments>
+        </filter>
+        <filter id="1141899266">
+            <message_arguments>
+                <message_argument value="3.1"/>
+                <message_argument value="3.2"/>
+                <message_argument value="ERROR_STACKTRACE"/>
+            </message_arguments>
+        </filter>
+    </resource>
+    <resource path="src/eclipse/org/knime/core/node/workflow/WorkflowManager.java" type="org.knime.core.node.workflow.WorkflowManager">
+        <filter id="338792546">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.workflow.WorkflowManager"/>
+                <message_argument value="collapseIntoMetaNode(NodeID[], WorkflowAnnotation[], String)"/>
+            </message_arguments>
+        </filter>
+        <filter id="1143996420">
+            <message_arguments>
+                <message_argument value="collapseIntoMetaNode(NodeID[], WorkflowAnnotation[], String)"/>
+            </message_arguments>
+        </filter>
+    </resource>
+</component>
