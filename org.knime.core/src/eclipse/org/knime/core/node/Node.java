@@ -925,7 +925,7 @@ public final class Node implements NodeModelWarningListener {
                     newInData[i] = rawInData[i];
                 } else {
                     exec.setMessage("Copying input object at port " +  i);
-                    ExecutionMonitor subExec = exec.createSubProgress(0.0);
+                    ExecutionContext subExec = exec.createSubExecutionContext(0.0);
                     try {
                         newInData[i] = copyPortObject(rawInData[i], subExec);
                     } catch (CanceledExecutionException e) {
@@ -1211,9 +1211,7 @@ public final class Node implements NodeModelWarningListener {
      */
     private boolean setOutPortObjects(final PortObject[] newOutData,
             final boolean tolerateNullOutports, final boolean tolerateDifferentSpecs) {
-        if (newOutData == null) {
-            throw new NullPointerException("Port object array is null");
-        }
+        CheckUtils.checkArgumentNotNull(newOutData, "Port object array is null");
         if (newOutData.length != getNrOutPorts()) {
             throw new IndexOutOfBoundsException("Array is expected to be of "
                     + "length " + getNrOutPorts() + ": " + newOutData.length);
@@ -1322,9 +1320,9 @@ public final class Node implements NodeModelWarningListener {
      * @return The (deep) copy.
      * @throws IOException In case of exceptions while accessing the stream or
      * if the argument is an instance of {@link BufferedDataTable}.
-     * @throws CanceledExecutionException If canceled.*/
+     * @throws CanceledExecutionException If canceled. */
     public static PortObject copyPortObject(final PortObject portObject,
-            final ExecutionMonitor exec) throws IOException,
+            final ExecutionContext exec) throws IOException,
             CanceledExecutionException {
         if (portObject instanceof BufferedDataTable) {
             throw new IOException("Can't copy BufferedDataTable objects");
@@ -1369,7 +1367,7 @@ public final class Node implements NodeModelWarningListener {
         if (portObject instanceof FileStorePortObject) {
             FileStorePortObject sourceFSObj = (FileStorePortObject)portObject;
             FileStorePortObject resultFSObj = (FileStorePortObject)result;
-            FileStoreUtil.retrieveFileStoreHandlers(sourceFSObj, resultFSObj);
+            FileStoreUtil.retrieveFileStoreHandlers(sourceFSObj, resultFSObj, exec.getFileStoreHandler());
         }
         if (!deferredOutputStream.isInMemory()) {
             deferredOutputStream.getFile().delete();

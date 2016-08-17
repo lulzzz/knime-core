@@ -302,11 +302,11 @@ public final class SubNodeContainer extends SingleNodeContainer implements NodeC
      * @param name The name of the sub node
      */
     SubNodeContainer(final WorkflowManager parent, final NodeID id, final WorkflowManager content, final String name) {
-        super(parent, id);
+        super(parent, id, content.getNodeAnnotation());
         // Create new, internal workflow manager:
         m_wfm = new WorkflowManager(this, null, new NodeID(id, 0), new PortType[]{}, new PortType[]{}, false,
                 parent.getContext(), name, Optional.of(parent.getGlobalTableRepository()),
-                Optional.of(parent.getFileStoreHandlerRepository()));
+                Optional.of(parent.getFileStoreHandlerRepository()), Optional.of(content.getNodeAnnotation()));
         m_wfm.setJobManager(null);
         m_subnodeScopeContext = new FlowSubnodeScopeContext(this);
         // and copy content
@@ -2195,14 +2195,23 @@ public final class SubNodeContainer extends SingleNodeContainer implements NodeC
 
     /** {@inheritDoc} */
     @Override
-    boolean isResetable() {
-        return getWorkflowManager().isResetable();
+    public boolean isResetable() {
+        if (getNodeLocks().hasResetLock()) {
+            return false;
+        } else {
+            return getWorkflowManager().isResetable();
+        }
+
     }
 
     /** {@inheritDoc} */
     @Override
     boolean canPerformReset() {
-        return getWorkflowManager().canPerformReset();
+        if (getNodeLocks().hasResetLock()) {
+            return false;
+        } else {
+            return getWorkflowManager().canPerformReset();
+        }
     }
 
 }

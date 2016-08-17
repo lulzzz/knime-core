@@ -69,6 +69,8 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
+import org.knime.core.node.dialog.ExternalNodeData;
+import org.knime.core.node.dialog.InputNode;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.core.node.util.ConvenienceMethods;
 import org.knime.core.node.web.DefaultWebTemplate;
@@ -79,7 +81,6 @@ import org.knime.core.node.web.WebTemplate;
 import org.knime.core.node.web.WebViewContent;
 import org.knime.core.node.wizard.WizardNode;
 import org.knime.core.node.workflow.WorkflowManager.NodeModelFilter;
-import org.knime.core.util.Pair;
 
 /**
  * A utility class received from the workflow manager that allows stepping back and forth in a wizard execution.
@@ -322,15 +323,6 @@ public final class WizardExecutionController extends ExecutionController {
         }
     }
 
-    private static boolean containsDestination(final List<Pair<NodeID, NodeID>> waitingPairs, final NodeID dest) {
-        for (Pair<NodeID, NodeID> p : waitingPairs) {
-            if (p.getSecond().equals(dest)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** Created from workflow.
      * @param manager ...
      */
@@ -395,31 +387,6 @@ public final class WizardExecutionController extends ExecutionController {
     @Override
     boolean isHalted(final NodeID source) {
         return m_waitingSubnodes.contains(source);
-    }
-
-    private NodeID findNextWaitingSubnode() {
-        final Workflow flow = m_manager.getWorkflow();
-        Map<NodeID, Set<Integer>> breadthFirstSortedList = flow.createBreadthFirstSortedList(flow.getNodeIDs(), true);
-        for (Map.Entry<NodeID, Set<Integer>> entry : breadthFirstSortedList.entrySet()) {
-            NodeContainer nc = flow.getNode(entry.getKey());
-            if (nc instanceof SubNodeContainer) {
-                SubNodeContainer subnodeNC = (SubNodeContainer)nc;
-                WorkflowManager subnodeMgr = subnodeNC.getWorkflowManager();
-                if (subnodeMgr.getNodeContainerState().isExecuted()) {
-                    continue; // do not prompt executed sub nodes
-                }
-                if (m_promptedSubnodeIDSuffixes.contains(entry.getKey().getIndex())) {
-                    continue;
-                }
-                @SuppressWarnings("rawtypes")
-                final Map<NodeID, WizardNode> wizardNodes =
-                subnodeMgr.findNodes(WizardNode.class, NOT_HIDDEN_FILTER, false);
-                if (!wizardNodes.isEmpty()) {
-                    return subnodeNC.getID();
-                }
-            }
-        }
-        return null;
     }
 
     /** Get the current wizard page. Throws exception if none is available (as per {@link #hasCurrentWizardPage()}.
@@ -494,6 +461,24 @@ public final class WizardExecutionController extends ExecutionController {
 //            return false;
 //        }
 //        return true;
+    }
+
+    /** Parameterizes {@link InputNode}s in the workflow (URL parameters).
+     * @param input non-null input
+     * @throws InvalidSettingsException if wfm chokes
+     * @see WorkflowManager#setInputNodes(Map)
+     * @since 3.2 */
+    public void setInputNodes(final Map<String, ExternalNodeData> input) throws InvalidSettingsException {
+        final WorkflowManager manager = m_manager;
+        try (WorkflowLock lock = manager.lock()) {
+            checkDiscard();
+            NodeContext.pushContext(manager);
+            try {
+                manager.setInputNodes(input);
+            } finally {
+                NodeContext.removeLastContext();
+            }
+        }
     }
 
     /** Continues the execution and executes up to, incl., the next subnode awaiting input. If no such subnode exists

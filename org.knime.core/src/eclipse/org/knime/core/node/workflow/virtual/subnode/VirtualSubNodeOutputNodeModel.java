@@ -55,6 +55,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.ObjectUtils;
 import org.knime.core.data.DataRow;
@@ -84,6 +85,7 @@ import org.knime.core.node.streamable.RowInput;
 import org.knime.core.node.streamable.StreamableOperator;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.core.node.util.filter.NameFilterConfiguration.FilterResult;
+import org.knime.core.node.workflow.CredentialsProvider;
 import org.knime.core.node.workflow.CredentialsStore.CredentialsNode;
 import org.knime.core.node.workflow.ExecutionEnvironment;
 import org.knime.core.node.workflow.FlowVariable;
@@ -200,7 +202,7 @@ public final class VirtualSubNodeOutputNodeModel extends ExtendedScopeNodeModel
                 Node.invokeGetAvailableFlowVariables(this, Type.values()));
         FilterResult result = m_configuration.getFilterConfiguration().applyTo(filter);
         filter.keySet().retainAll(Arrays.asList(result.getIncludes()));
-        return filter.values();
+        return filter.values().stream().filter(e -> !e.isGlobalConstant()).collect(Collectors.toList());
     }
 
     /** @return the configuration - used in test framework, no API.*/
@@ -312,10 +314,10 @@ public final class VirtualSubNodeOutputNodeModel extends ExtendedScopeNodeModel
     }
 
     /** {@inheritDoc}
-     * @since 3.1*/
+     * @since 3.2*/
     @Override
     public void doAfterLoadFromDisc(final WorkflowLoadHelper loadHelper,
-        final boolean isExecuted, final boolean isInactive) {
+        final CredentialsProvider credProvider, final boolean isExecuted, final boolean isInactive) {
         // before 3.1 it didn't implement POHolder so node output exchange set although executed
         // otherwise we could assert isExecute --> m_outputExchange != null
         if (isExecuted && m_outputExchange != null) {

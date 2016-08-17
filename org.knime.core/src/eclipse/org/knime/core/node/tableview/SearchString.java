@@ -1,5 +1,6 @@
 /*
  * ------------------------------------------------------------------------
+ *
  *  Copyright by KNIME GmbH, Konstanz, Germany
  *  Website: http://www.knime.org; Email: contact@knime.org
  *
@@ -41,80 +42,98 @@
  *  may freely choose the license terms applicable to such Node, including
  *  when such Node is propagated with or for interoperation with KNIME.
  * ---------------------------------------------------------------------
- * 
+ *
+ * History
+ *   Jul 15, 2016 (wiswedel): created
  */
 package org.knime.core.node.tableview;
 
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 /**
- * Postion information when searching occurrences in the entire table.
- * @author Bernd Wiswedel, University of Konstanz
+ * The search string as entered by the user (Ctrl-F) with some more search options.
+ * @author wiswedel
  */
-class FindPositionAll extends FindPositionRowKey {
-    
-    private int m_searchColumnInclRowIDCol;
+final class SearchString {
 
-    private int m_searchColumnInclRowIDColMark;
+    private final String m_searchString;
+    private final boolean m_ignoreCase;
+    private final boolean m_isRegex;
+    private final Pattern m_pattern;
 
-    private final int m_columnCountInclRowIDCol;
-
-    /** Create new postion object.
-     * @param rowCount The total number of rows in the table
-     * @param columnCount The total number of columns in the table.
+    /**
+     * @param searchString
+     * @param ignoreCase
+     * @param isRegex
+     * @throws PatternSyntaxException
      */
-    FindPositionAll(final int rowCount, final int columnCount) {
-        super(rowCount);
-        if (columnCount < 0) {
-            throw new IllegalArgumentException("Column Count < 0: "
-                    + columnCount);
+    SearchString(final String searchString, final boolean ignoreCase, final boolean isRegex) {
+        m_searchString = searchString;
+        m_ignoreCase = ignoreCase;
+        m_isRegex = isRegex;
+        if (isRegex) {
+            int flags = m_ignoreCase ? Pattern.CASE_INSENSITIVE : 0;
+            m_pattern = Pattern.compile(searchString, flags);
+        } else {
+            m_pattern = null;
         }
-        m_columnCountInclRowIDCol = columnCount + 1;
-        m_searchColumnInclRowIDCol = 0;
-        m_searchColumnInclRowIDColMark = 0;
+    }
+
+    /** Matches the string according to the settings.
+     * @param str ...
+     * @return ...
+     */
+    boolean matches(final String str) {
+        if (str == null) {
+            return false;
+        }
+        if (m_isRegex) {
+            return m_pattern.matcher(str).matches();
+        }
+        if (m_ignoreCase) {
+            return StringUtils.containsIgnoreCase(str, m_searchString);
+        }
+        return StringUtils.contains(str, m_searchString);
+    }
+
+    /** @return the searchString */
+    String getSearchString() {
+        return m_searchString;
+    }
+
+    /** @return the ignoreCase */
+    boolean isIgnoreCase() {
+        return m_ignoreCase;
+    }
+
+    /** @return the isRegex */
+    boolean isRegex() {
+        return m_isRegex;
     }
 
     /** {@inheritDoc} */
     @Override
-    int getSearchColumn() {
-        return m_searchColumnInclRowIDCol - 1;
+    public String toString() {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.MULTI_LINE_STYLE);
     }
 
     /** {@inheritDoc} */
     @Override
-    boolean next() {
-        int oldSearchCol = m_searchColumnInclRowIDCol;
-        m_searchColumnInclRowIDCol =
-                (m_searchColumnInclRowIDCol + 1) % m_columnCountInclRowIDCol;
-        if (m_searchColumnInclRowIDCol < oldSearchCol) {
-            return super.next();
-        }
-        return false;
+    public boolean equals(final Object obj) {
+        return EqualsBuilder.reflectionEquals(this, obj, true);
     }
-    
+
     /** {@inheritDoc} */
     @Override
-    void reset() {
-        super.reset();
-        m_searchColumnInclRowIDCol = 0;
-    }
-    
-    /** {@inheritDoc} */
-    @Override
-    boolean isIDOnly() {
-        return false;
-    }
-    
-    /** {@inheritDoc} */
-    @Override
-    void mark() {
-        super.mark();
-        m_searchColumnInclRowIDColMark = m_searchColumnInclRowIDCol;
-    }
-    
-    /** {@inheritDoc} */
-    @Override
-    boolean reachedMark() {
-        return super.reachedMark() 
-            && m_searchColumnInclRowIDColMark == m_searchColumnInclRowIDCol;
+    public int hashCode() {
+        return HashCodeBuilder.reflectionHashCode(this, true);
     }
 
 }

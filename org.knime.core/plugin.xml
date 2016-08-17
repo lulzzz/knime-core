@@ -10,6 +10,8 @@
    <extension-point id="DataType" name="DataType" schema="schema/DataType.exsd"/>
    <extension-point id="PortType" name="PortType" schema="schema/PortType.exsd"/>
    <extension-point id="EarlyStartup" name="EarlyStartup" schema="schema/EarlyStartup.exsd"/>
+   <extension-point id="JavaToDataCellConverter" name="JavaToDataCellConverter" schema="schema/JavaToDataCellConverter.exsd"/>
+   <extension-point id="DataCellToJavaConverter" name="DataCellToJavaConverter" schema="schema/DataCellToJavaConverter.exsd"/>
    <extension
          point="org.knime.core.NodeExecutionJobManagerFactory">
       <NodeExecutionJobManagerFactory
@@ -159,6 +161,20 @@
          </renderer>
       </dataValue>
       <dataValue
+            valueClass="org.knime.core.data.vector.doublevector.DoubleVectorValue">
+         <renderer
+               rendererFactoryClass="org.knime.core.data.renderer.DoubleVectorValueRenderer$Factory"
+               suggestAsDefault="true">
+         </renderer>
+      </dataValue>
+      <dataValue
+            valueClass="org.knime.core.data.vector.stringvector.StringVectorValue">
+         <renderer
+               rendererFactoryClass="org.knime.core.data.renderer.StringVectorValueRenderer$Factory"
+               suggestAsDefault="true">
+         </renderer>
+      </dataValue>
+      <dataValue
             valueClass="org.knime.core.data.FuzzyIntervalValue">
          <renderer
                rendererFactoryClass="org.knime.core.data.renderer.DefaultDataValueRenderer$Factory"
@@ -211,18 +227,6 @@
    <extension
          point="org.knime.core.DatabaseUtility">
       <databaseUtility
-            class="org.knime.core.node.port.database.SQLiteUtility"
-            database="sqlite">
-      </databaseUtility>
-      <databaseUtility
-            class="org.knime.core.node.port.database.MySQLUtility"
-            database="mysql">
-      </databaseUtility>
-      <databaseUtility
-            class="org.knime.core.node.port.database.PostgreSQLUtility"
-            database="postgresql">
-      </databaseUtility>
-      <databaseUtility
             class="org.knime.core.node.port.database.OracleUtility"
             database="oracle">
       </databaseUtility>
@@ -259,6 +263,22 @@
          <serializer
                cellClass="org.knime.core.data.def.DoubleCell"
                serializerClass="org.knime.core.data.def.DoubleCell$DoubleSerializer">
+         </serializer>
+      </DataType>
+      <DataType
+            cellClass="org.knime.core.data.vector.doublevector.DenseDoubleVectorCell"
+            factoryClass="org.knime.core.data.vector.doublevector.DoubleVectorCellFactory">
+         <serializer
+               cellClass="org.knime.core.data.vector.doublevector.DenseDoubleVectorCell"
+               serializerClass="org.knime.core.data.vector.doublevector.DenseDoubleVectorCell$DenseDoubleVectorSerializer">
+         </serializer>
+      </DataType>
+      <DataType
+            cellClass="org.knime.core.data.vector.stringvector.DenseStringVectorCell"
+            factoryClass="org.knime.core.data.vector.stringvector.StringVectorCellFactory">
+         <serializer
+               cellClass="org.knime.core.data.vector.stringvector.DenseStringVectorCell"
+               serializerClass="org.knime.core.data.vector.stringvector.DenseStringVectorCell$DenseStringVectorSerializer">
          </serializer>
       </DataType>
       <DataType
@@ -450,6 +470,13 @@
          <serializer
                cellClass="org.knime.core.data.xml.PMMLBlobCell"
                serializerClass="org.knime.core.data.xml.PMMLBlobCell$PMMLSerializer">
+         </serializer>
+      </DataType>
+      <DataType
+            cellClass="org.knime.core.data.MissingCell">
+         <serializer
+               cellClass="org.knime.core.data.MissingCell"
+               serializerClass="org.knime.core.data.MissingCell$MissingSerializer">
          </serializer>
       </DataType>
    </extension>
