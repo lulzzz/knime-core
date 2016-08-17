@@ -7404,7 +7404,7 @@ public final class WorkflowManager extends NodeContainer implements NodeUIInform
                 NodeContainer nc = getNodeContainer(id);
                 exec.setMessage(nc.getNameWithID());
                 ExecutionMonitor subExec = exec.createSubProgress(1.0 / bfsSortedSet.size());
-                NodeContainerExecutionResult subResult = getNodeContainer(id).createExecutionResult(subExec);
+                NodeContainerExecutionResult subResult = nc.createExecutionResult(subExec);
                 if (subResult.isSuccess()) {
                     success = true;
                 }
@@ -7416,6 +7416,22 @@ public final class WorkflowManager extends NodeContainer implements NodeUIInform
             if (success) {
                 result.setSuccess(true);
             }
+            return result;
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    WorkflowExecutionResult createInactiveExecutionResult() {
+        try (WorkflowLock lock = lock()) {
+            WorkflowExecutionResult result = new WorkflowExecutionResult(getID());
+            NodeContainer.saveInactiveExecutionResult(result);
+            Set<NodeID> bfsSortedSet = m_workflow.createBreadthFirstSortedList(m_workflow.getNodeIDs(), true).keySet();
+            for (NodeID id : bfsSortedSet) {
+                NodeContainerExecutionResult subResult = getNodeContainer(id).createInactiveExecutionResult();
+                result.addNodeExecutionResult(id, subResult);
+            }
+            result.setSuccess(true);
             return result;
         }
     }

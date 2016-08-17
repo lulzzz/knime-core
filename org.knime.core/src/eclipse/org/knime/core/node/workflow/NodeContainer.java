@@ -1528,6 +1528,9 @@ public abstract class NodeContainer implements NodeProgressListener, NodeContain
     public abstract NodeContainerExecutionResult createExecutionResult(
             final ExecutionMonitor exec) throws CanceledExecutionException;
 
+    /** @return a new result that pretends that the node is executed but inactive. */
+    abstract NodeContainerExecutionResult createInactiveExecutionResult();
+
 
     /** Saves all information that is held in this abstract NodeContainer
      * into the argument.
@@ -1537,6 +1540,12 @@ public abstract class NodeContainer implements NodeProgressListener, NodeContain
             final NodeContainerExecutionResult result) {
         result.setSuccess(getInternalState().equals(InternalNodeContainerState.EXECUTED));
         result.setMessage(m_nodeMessage);
+    }
+
+    /** Used by {@link NodeContainer#createInactiveExecutionResult()} to mimic a succesful but inactive execution. */
+    static void saveInactiveExecutionResult(final NodeContainerExecutionResult result) {
+        result.setSuccess(true);
+        result.setMessage(NodeMessage.NONE);
     }
 
     /**

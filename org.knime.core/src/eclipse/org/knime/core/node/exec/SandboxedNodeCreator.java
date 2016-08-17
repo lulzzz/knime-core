@@ -120,32 +120,44 @@ public final class SandboxedNodeCreator {
     private static final NodeFactory<?> TABLE_READ_NODE_FACTORY = new BDTInNodeFactory();
 
     private final WorkflowManager m_rootWFM;
+
     private final NodeContainer m_nc;
 
     private File m_localWorkflowDir;
+
     private PortObject[] m_inData;
+
     private boolean m_copyDataIntoNewContext;
+
     private boolean m_forwardConnectionProgressEvents;
 
-    /** New creator with base information that can be further customized using the setter methods. None
-     * of the arguments must be null.
+    private NodeSettingsHook[] m_nodeSettingsHooks;
+
+    /**
+     * New creator with base information that can be further customized using the setter methods. None of the arguments
+     * must be null.
+     *
      * @param ncToClone The node to clone.
      * @param inData The input data the node is provided with. Length must correspond to number of inputs.
-     * @param rootWFM the parent workflow into which the new temporary project is created. The cluster
-     * execution and streamer executor have their own private pool to not pollute WFM#ROOT.
+     * @param rootWFM the parent workflow into which the new temporary project is created. The cluster execution and
+     *            streamer executor have their own private pool to not pollute WFM#ROOT.
+     * @param hooks to manipulate or react on certain {@link NodeSettings}
      */
-    public SandboxedNodeCreator(final NodeContainer ncToClone, final PortObject[] inData,
-        final WorkflowManager rootWFM) {
+    public SandboxedNodeCreator(final NodeContainer ncToClone, final PortObject[] inData, final WorkflowManager rootWFM,
+        final NodeSettingsHook... hooks) {
         m_nc = CheckUtils.checkArgumentNotNull(ncToClone);
         m_rootWFM = CheckUtils.checkArgumentNotNull(rootWFM);
         m_inData = CheckUtils.checkArgumentNotNull(inData);
+        m_nodeSettingsHooks = hooks;
         CheckUtils.checkArgument(inData.length == m_nc.getNrInPorts(),
             "Invalid array port object array length, expected %d but got %d", m_nc.getNrInPorts(), inData.length);
     }
 
-    /** Where to save the sandboxed workflow after it's created. For the cluster execution this is a 'real' folder.
-     * Default is <code>null</code> -- so a temporary workflow folder is assigned and the workflow is not saved
-     * to disc after it's been created.
+    /**
+     * Where to save the sandboxed workflow after it's created. For the cluster execution this is a 'real' folder.
+     * Default is <code>null</code> -- so a temporary workflow folder is assigned and the workflow is not saved to disc
+     * after it's been created.
+     *
      * @param localWorkflowDir The folder or null (which is the default).
      * @return this (method chaining)
      */
@@ -154,10 +166,12 @@ public final class SandboxedNodeCreator {
         return this;
     }
 
-    /** Set whether to copy the data from the original workflow into the sandboxed workflow. This is true if the
-     * workflow is run some place else (in the cluster) so that data including filestores and blobs make a context
-     * switch. This is expensive (I/O) but needed to guarantee isolation. Default is <code>false</code> -- so the
-     * temporary workflow is using the data directly associated with the original workflow.
+    /**
+     * Set whether to copy the data from the original workflow into the sandboxed workflow. This is true if the workflow
+     * is run some place else (in the cluster) so that data including filestores and blobs make a context switch. This
+     * is expensive (I/O) but needed to guarantee isolation. Default is <code>false</code> -- so the temporary workflow
+     * is using the data directly associated with the original workflow.
+     *
      * @param copyDataIntoNewContext that property (default is <code>false</code>).
      * @return this (method chaining).
      */
@@ -166,8 +180,10 @@ public final class SandboxedNodeCreator {
         return this;
     }
 
-    /** Whether to forward progress events on {@link ConnectionContainer}. This is true for the streaming executor
-     * but false otherwise.
+    /**
+     * Whether to forward progress events on {@link ConnectionContainer}. This is true for the streaming executor but
+     * false otherwise.
+     *
      * @param forwardConnectionProgressEvents that property (default is <code>false</code>).
      * @return this (method chaining).
      */
@@ -182,9 +198,9 @@ public final class SandboxedNodeCreator {
     }
 
     /**
-     * Creates that temporary mini workflow that is executed remotely on the cluster/stream executor.
-     * The returned value should be {@link SandboxedNode#close()} when done (using try-with-resources). After this
-     * method is called no other set-method should be called.
+     * Creates that temporary mini workflow that is executed remotely on the cluster/stream executor. The returned value
+     * should be {@link SandboxedNode#close()} when done (using try-with-resources). After this method is called no
+     * other set-method should be called.
      *
      * @param exec for progress/cancelation
      * @return the index of the node that represents this node (the node to execute) in the temporary mini workflow
@@ -195,7 +211,7 @@ public final class SandboxedNodeCreator {
      * @throws InterruptedException
      */
     public SandboxedNode createSandbox(final ExecutionMonitor exec) throws InvalidSettingsException, IOException,
-    CanceledExecutionException, LockFailedException, InterruptedException {
+        CanceledExecutionException, LockFailedException, InterruptedException {
         exec.setMessage("Creating virtual workflow");
 
         // get all the flow variables currently available at the node to copy
@@ -203,7 +219,7 @@ public final class SandboxedNodeCreator {
         if (m_nc instanceof SingleNodeContainer) {
             final FlowObjectStack flowObjectStack = ((SingleNodeContainer)m_nc).getFlowObjectStack();
             final Collection<FlowVariable> flowVarsIn =
-                    flowObjectStack.getAvailableFlowVariables(Type.values()).values();
+                flowObjectStack.getAvailableFlowVariables(Type.values()).values();
             flowVarsIn.stream().filter(fv -> !fv.isGlobalConstant()).forEachOrdered(fv -> flowVars.add(fv));
             // getAvailableFlowVariables returns top down, make sure iterations on list return oldest entry first
             // (will be pushed onto node stack using an iterator)
@@ -258,8 +274,8 @@ public final class SandboxedNodeCreator {
                 NodeID inID = tempWFM.createAndAddNode(isTable ? TABLE_READ_NODE_FACTORY : OBJECT_READ_NODE_FACTORY);
                 NodeSettings s = new NodeSettings("temp_data_in");
                 tempWFM.saveNodeSettings(inID, s);
-                PortObjectInNodeModel.setInputNodeSettings(s,
-                    portObjectRepositoryID, flowVars, m_copyDataIntoNewContext);
+                PortObjectInNodeModel.setInputNodeSettings(s, portObjectRepositoryID, flowVars,
+                     m_copyDataIntoNewContext);
 
                 //update credentials store of the workflow
                 CredentialsStore cs  = tempWFM.getCredentialsStore();
@@ -285,7 +301,7 @@ public final class SandboxedNodeCreator {
             NodeContainer targetNode = tempWFM.getNodeContainer(targetNodeID);
             // connect target node to inPort object nodes, skipping unconnected (optional) inputs
             IntStream.range(0, inCnt).filter(i -> ins[i] != null)
-            .forEach(i -> tempWFM.addConnection(ins[i], 1, targetNodeID, i));
+                .forEach(i -> tempWFM.addConnection(ins[i], 1, targetNodeID, i));
             if (m_forwardConnectionProgressEvents) {
                 setupConnectionProgressEventListeners(m_nc, targetNode);
             }
@@ -311,6 +327,12 @@ public final class SandboxedNodeCreator {
                 copyFileStoreHandlerReference(targetNode, parent, false);
             }
 
+            // 1. TempWFM find relevant nodes
+            // Assumption: we actually only have one spark to table and one table to spark
+
+            for (NodeSettingsHook hook : m_nodeSettingsHooks) {
+                hook.run(tempWFM);
+            }
             // save workflow in the local job dir
             if (m_localWorkflowDir != null) {
                 tempWFM.save(m_localWorkflowDir, exec, true);
@@ -326,12 +348,13 @@ public final class SandboxedNodeCreator {
 
     /**
      * Deep copies data and drop folders contained in the source directory to the target directory.
+     *
      * @param source Source node
      * @param targetParent Target node's parent
      */
     private static void deepCopyFilesInWorkflowDir(final NodeContainer source, final WorkflowManager targetParent) {
-        NodeContainer target = targetParent.getNodeContainer(
-            targetParent.getID().createChild(source.getID().getIndex()));
+        NodeContainer target =
+            targetParent.getNodeContainer(targetParent.getID().createChild(source.getID().getIndex()));
         ReferencedFile sourceDirRef = source.getNodeContainerDirectory();
         ReferencedFile targetDirRef = target.getNodeContainerDirectory();
         if (sourceDirRef == null) {
@@ -347,8 +370,8 @@ public final class SandboxedNodeCreator {
                 File dataTargetDir = new File(targetDir, magicFolderName);
                 try {
                     FileUtils.copyDirectory(dataSourceDir, dataTargetDir);
-                    LOGGER.debugWithFormat("Copied directory \"%s\" to \"%s\"",
-                        dataSourceDir.getAbsolutePath(), dataTargetDir.getAbsolutePath());
+                    LOGGER.debugWithFormat("Copied directory \"%s\" to \"%s\"", dataSourceDir.getAbsolutePath(),
+                        dataTargetDir.getAbsolutePath());
                 } catch (IOException ex) {
                     LOGGER.error(String.format("Could not copy directory \"%s\" to \"%s\": %s",
                         dataSourceDir.getAbsolutePath(), dataTargetDir.getAbsolutePath(), ex.getMessage()), ex);
@@ -369,13 +392,16 @@ public final class SandboxedNodeCreator {
         }
     }
 
-    /** Sets the file store handlers set on the original node recursively into the sandboxed node. This is
-     * only done when the data is _not_ to be copied as the sandboxed node should use the data (includes file stores)
-     * from the original node.
+    /**
+     * Sets the file store handlers set on the original node recursively into the sandboxed node. This is only done when
+     * the data is _not_ to be copied as the sandboxed node should use the data (includes file stores) from the original
+     * node.
+     *
      * @param runNC The sandbox node container
      * @param origNCParent the parent of the original workflow
      * @param nullIt <code>true</code> to set a <code>null</code> file store handler - used in
-     * {@link SandboxedNode#close()} (otherwise the file store handler is cleared when the temp flow is disposed).
+     *            {@link SandboxedNode#close()} (otherwise the file store handler is cleared when the temp flow is
+     *            disposed).
      */
     private void copyFileStoreHandlerReference(final NodeContainer runNC, final WorkflowManager origNCParent,
         final boolean nullIt) {
@@ -383,8 +409,8 @@ public final class SandboxedNodeCreator {
         final int runNCIndex = runNC.getID().getIndex();
         if (runNC instanceof NativeNodeContainer) {
             NativeNodeContainer runNNC = (NativeNodeContainer)runNC;
-            NativeNodeContainer origNNC = origNCParent.getNodeContainer(
-                origParentID.createChild(runNCIndex), NativeNodeContainer.class, true);
+            NativeNodeContainer origNNC =
+                origNCParent.getNodeContainer(origParentID.createChild(runNCIndex), NativeNodeContainer.class, true);
             if (origNNC.getNodeContainerState().isExecutionInProgress()) {
                 final IFileStoreHandler fsHdl = nullIt ? null : origNNC.getNode().getFileStoreHandler();
                 if (!nullIt) {
@@ -394,13 +420,14 @@ public final class SandboxedNodeCreator {
             }
         } else if (runNC instanceof WorkflowManager) {
             WorkflowManager runWFM = (WorkflowManager)runNC;
-            WorkflowManager origWFM = origNCParent.getNodeContainer(
-                origParentID.createChild(runNCIndex), WorkflowManager.class, true);
+            WorkflowManager origWFM =
+                origNCParent.getNodeContainer(origParentID.createChild(runNCIndex), WorkflowManager.class, true);
             runWFM.getNodeContainers().stream().forEach(n -> copyFileStoreHandlerReference(n, origWFM, nullIt));
         } else {
             WorkflowManager runSubWFM = ((SubNodeContainer)runNC).getWorkflowManager();
-            WorkflowManager origSubWFM = origNCParent.getNodeContainer(
-                origParentID.createChild(runNCIndex), SubNodeContainer.class, true).getWorkflowManager();
+            WorkflowManager origSubWFM =
+                origNCParent.getNodeContainer(origParentID.createChild(runNCIndex), SubNodeContainer.class, true)
+                    .getWorkflowManager();
             runSubWFM.getNodeContainers().stream().forEach(n -> copyFileStoreHandlerReference(n, origSubWFM, nullIt));
         }
     }
@@ -455,8 +482,8 @@ public final class SandboxedNodeCreator {
             assert targetNC instanceof NativeNodeContainer;
 
             // data is to copy ... get the correct execution context
-            ExecutionContext targetExec = copyDataIntoNewContext
-                    ? ((SingleNodeContainer)targetNC).createExecutionContext() : null;
+            ExecutionContext targetExec =
+                copyDataIntoNewContext ? ((SingleNodeContainer)targetNC).createExecutionContext() : null;
 
             NodeExecutionResult ner = sncResult.getNodeExecutionResult();
             // TODO this copy process has to take place in a different place
@@ -555,19 +582,22 @@ public final class SandboxedNodeCreator {
     }
 
     /** Deep clone of port object. */
-    private static PortObject copyPortObject(final PortObject oldT,
-        final ExecutionMonitor sub, final ExecutionContext targetExec) throws IOException, CanceledExecutionException {
+    private static PortObject copyPortObject(final PortObject oldT, final ExecutionMonitor sub,
+        final ExecutionContext targetExec) throws IOException, CanceledExecutionException {
         if (targetExec == null || oldT == null) {
             return oldT;
         }
         return PortObjectRepository.copy(oldT, targetExec, sub);
     }
 
-    /** An instance wrapping a sandboxed node container. It should be {@link #close()}'d when done (e.g. using
-     * try-with-resources). */
+    /**
+     * An instance wrapping a sandboxed node container. It should be {@link #close()}'d when done (e.g. using
+     * try-with-resources).
+     */
     public final class SandboxedNode implements AutoCloseable {
 
         private final WorkflowManager m_wfm;
+
         private final NodeID m_sandboxNodeID;
 
         private SandboxedNode(final WorkflowManager wfm, final NodeID sandboxNodeID) {

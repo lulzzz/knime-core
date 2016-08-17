@@ -16,4 +16,12 @@
             </message_arguments>
         </filter>
     </resource>
+    <resource path="src/eclipse/org/knime/core/node/exec/SandboxedNodeCreator.java" type="org.knime.core.node.exec.SandboxedNodeCreator">
+        <filter comment="Problem filter for backwards compatible constructor change in SandboxedNodeCreator" id="338722907">
+            <message_arguments>
+                <message_argument value="org.knime.core.node.exec.SandboxedNodeCreator"/>
+                <message_argument value="SandboxedNodeCreator(NodeContainer, PortObject[], WorkflowManager)"/>
+            </message_arguments>
+        </filter>
+    </resource>
 </component>

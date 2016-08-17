@@ -888,6 +888,16 @@ public class NativeNodeContainer extends SingleNodeContainer {
 
     /** {@inheritDoc} */
     @Override
+    NodeContainerExecutionResult createInactiveExecutionResult() {
+        NativeNodeContainerExecutionResult result = new NativeNodeContainerExecutionResult();
+        NodeContainer.saveInactiveExecutionResult(result);
+        result.setNodeExecutionResult(m_node.createInactiveNodeExecutionResult());
+        return result;
+
+    }
+
+    /** {@inheritDoc} */
+    @Override
     void performSaveModelSettingsTo(final NodeSettings modelSettings) {
         getNode().saveModelSettingsTo(modelSettings);
     }
