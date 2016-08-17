@@ -53,7 +53,7 @@ import org.knime.core.node.workflow.WorkflowManager;
 /**
  *
  * @author dietzc
- * @since 3.2
+ * @since 3.3
  */
 public interface NodeSettingsHook {
 
