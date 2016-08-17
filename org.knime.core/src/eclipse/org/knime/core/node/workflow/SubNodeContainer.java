@@ -124,8 +124,10 @@ import org.knime.core.node.workflow.WorkflowPersistor.ConnectionContainerTemplat
 import org.knime.core.node.workflow.WorkflowPersistor.LoadResult;
 import org.knime.core.node.workflow.WorkflowPersistor.NodeContainerTemplateLinkUpdateResult;
 import org.knime.core.node.workflow.WorkflowPersistor.WorkflowPortTemplate;
+import org.knime.core.node.workflow.execresult.NativeNodeContainerExecutionResult;
 import org.knime.core.node.workflow.execresult.NodeContainerExecutionResult;
 import org.knime.core.node.workflow.execresult.NodeContainerExecutionStatus;
+import org.knime.core.node.workflow.execresult.NodeExecutionResult;
 import org.knime.core.node.workflow.execresult.SubnodeContainerExecutionResult;
 import org.knime.core.node.workflow.execresult.WorkflowExecutionResult;
 import org.knime.core.node.workflow.virtual.subnode.VirtualSubNodeExchange;
@@ -1197,6 +1199,43 @@ public final class SubNodeContainer extends SingleNodeContainer implements NodeC
             }
             // innerResult is success as soon as one of the nodes is a success - be more strict here
             result.setSuccess(innerResult.isSuccess() && getInternalState().equals(EXECUTED));
+            result.setWorkflowExecutionResult(innerResult);
+            return result;
+        }
+    }
+
+    /** Called by some external executors to create an 'empty' execution result - all nodes are inactive except
+     * for the last output node which contains the result data.
+     * @param outputObjects The result objects to be put into the result object. Must not be null and have same length
+     * as number of outputs, excluding the optional variable port.
+     * @return Such a result object
+     * @since 3.3
+     */
+    public SubnodeContainerExecutionResult createExecutionResult(final PortObject[] outputObjects) {
+        CheckUtils.checkArgumentNotNull(outputObjects);
+        CheckUtils.checkArgument(outputObjects.length == getNrOutPorts() - 1, "Invalid output length (excl flow vars): "
+            + "%d but expected %d", outputObjects.length, getNrOutPorts() - 1);
+        try (WorkflowLock lock = lock()) {
+            SubnodeContainerExecutionResult execResult = createInactiveExecutionResult();
+            WorkflowExecutionResult workflowExecResult = execResult.getWorkflowExecutionResult();
+            NativeNodeContainerExecutionResult outNodeExecResult =
+                    (NativeNodeContainerExecutionResult)workflowExecResult.getChildStatus(m_virtualOutNodeIDSuffix);
+            final NodeExecutionResult nodeResult = outNodeExecResult.getNodeExecutionResult();
+            nodeResult.setInternalHeldPortObjects(outputObjects);
+            nodeResult.setPortObjects(new PortObject[] {FlowVariablePortObject.INSTANCE});
+            nodeResult.setPortObjectSpecs(new PortObjectSpec[] {FlowVariablePortObjectSpec.INSTANCE});
+            return execResult;
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    SubnodeContainerExecutionResult createInactiveExecutionResult() {
+        try (WorkflowLock lock = lock()) {
+            SubnodeContainerExecutionResult result = new SubnodeContainerExecutionResult(getID());
+            NodeContainer.saveInactiveExecutionResult(result);
+            WorkflowExecutionResult innerResult = m_wfm.createInactiveExecutionResult();
+            result.setSuccess(true);
             result.setWorkflowExecutionResult(innerResult);
             return result;
         }
