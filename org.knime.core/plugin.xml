@@ -563,5 +563,5 @@
             specClass="org.knime.core.node.port.pmml.PMMLPortObjectSpec"
             specSerializer="org.knime.core.node.port.pmml.PMMLPortObjectSpecSerializer">
       </portType>
-   </extension> 
+   </extension>
 </plugin>
