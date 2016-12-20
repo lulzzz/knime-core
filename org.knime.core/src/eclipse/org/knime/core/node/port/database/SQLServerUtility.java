@@ -56,7 +56,9 @@ import org.knime.core.node.port.database.aggregation.DBAggregationFunctionFactor
  *
  * @author Thorsten Meinl, KNIME.com, Zurich, Switzerland
  * @since 2.10
+ * @deprecated moved to the org.knime.database.connectors plugin
  */
+@Deprecated
 public class SQLServerUtility extends DatabaseUtility {
     private static class SQLServerStatementManipulator extends StatementManipulator {
 

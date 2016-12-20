@@ -55,6 +55,7 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -68,8 +69,8 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.port.database.DatabaseConnectionSettings;
 import org.knime.core.node.port.database.RegisteredDriversConnectionFactory;
-import org.knime.core.node.util.ConvenienceMethods;
 import org.knime.core.node.workflow.CredentialsProvider;
+import org.knime.core.node.workflow.NodeContext;
 import org.knime.core.util.ThreadUtils;
 
 /**
@@ -89,50 +90,62 @@ public class CachedConnectionFactory implements DBConnectionFactory {
     private DBDriverFactory m_driverFactory;
 
     private static final class ConnectionKey {
-            private final String m_un;
-            private final String m_pw;
-            private final String m_dn;
-            private boolean m_kerberos;
-            private ConnectionKey(final String userName, final String password,
-                    final String databaseName, final boolean kerberos) {
-                m_un = userName;
-                m_pw = password;
-                m_dn = databaseName;
-                m_kerberos = kerberos;
-            }
-            /** {@inheritDoc} */
-            @Override
-            public boolean equals(final Object obj) {
-                if (obj == this) {
-                    return true;
-                }
-                if (obj == null || !(obj instanceof ConnectionKey)) {
-                    return false;
-                }
-                ConnectionKey ck = (ConnectionKey) obj;
-                if (!ConvenienceMethods.areEqual(this.m_un, ck.m_un)
-                      || !ConvenienceMethods.areEqual(this.m_pw, ck.m_pw)
-                      || !ConvenienceMethods.areEqual(this.m_dn, ck.m_dn)
-                      || this.m_kerberos != ck.m_kerberos) {
-                    return false;
-                }
+        private final String m_un;
+        private final String m_pw;
+        private final String m_dn;
+        private final String m_wfUser;
+
+        private ConnectionKey(final String userName, final String password, final String databaseName,
+            final String wfUser) {
+            m_un = userName;
+            m_pw = password;
+            m_dn = databaseName;
+            m_wfUser = wfUser;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((m_dn == null) ? 0 : m_dn.hashCode());
+            result = prime * result + ((m_pw == null) ? 0 : m_pw.hashCode());
+            result = prime * result + ((m_un == null) ? 0 : m_un.hashCode());
+            result = prime * result + ((m_wfUser == null) ? 0 : m_wfUser.hashCode());
+            return result;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean equals(final Object obj) {
+            if (this == obj) {
                 return true;
             }
-
-            /** {@inheritDoc} */
-            @Override
-            public int hashCode() {
-                return m_un.hashCode() ^ m_dn.hashCode();
+            if (obj == null) {
+                return false;
             }
-            /**
-             * {@inheritDoc}
-             */
-            @Override
-            public String toString() {
-                return "ConnectionKey [m_un=" + m_un + ", m_dn=" + m_dn + "]";
+            if (getClass() != obj.getClass()) {
+                return false;
             }
-
+            ConnectionKey other = (ConnectionKey)obj;
+            return Objects.equals(this.m_dn, other.m_dn)
+                    && Objects.equals(this.m_pw, other.m_pw)
+                    && Objects.equals(this.m_un, other.m_un)
+                    && Objects.equals(this.m_wfUser, other.m_wfUser);
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public String toString() {
+            return "ConnectionKey [db-user=" + m_un + ", db-name=" + m_dn + ", wf-user=" + m_wfUser + "]";
+        }
+    }
 
     /**
      * @param driverFactory the {@link DBDriverFactory} to get the {@link Driver}
@@ -161,7 +174,8 @@ public class CachedConnectionFactory implements DBConnectionFactory {
         final boolean kerberos = settings.useKerberos();
 
         // database connection key with user, password and database URL
-        ConnectionKey databaseConnKey = new ConnectionKey(user, pass, jdbcUrl, kerberos);
+        ConnectionKey databaseConnKey =
+            new ConnectionKey(user, pass, jdbcUrl, NodeContext.getWorkflowUser().orElse(null));
 
         // retrieve original key and/or modify connection key map
         synchronized (CONNECTION_KEYS) {
@@ -177,18 +191,20 @@ public class CachedConnectionFactory implements DBConnectionFactory {
             Connection conn = CONNECTION_MAP.get(databaseConnKey);
             // if connection already exists
             if (conn != null) {
-                LOGGER.debug("Connection found in cache for key: " + databaseConnKey);
                 try {
-                    if (conn.isClosed() || !settings.getUtility().isValid(conn)) {
-                        LOGGER.debug("Connection closed or invalid for key: " + databaseConnKey);
-                        CONNECTION_MAP.remove(databaseConnKey);
+                    if (conn.isClosed()) {
+                        LOGGER.debug("Closed connection found in cache with key: " + databaseConnKey);
+                    } else if (!settings.getUtility().isValid(conn)) {
+                        LOGGER.debug("Invalid connection found in cache with key: " + databaseConnKey);
                     } else {
+                        LOGGER.debug("Valid connection found in cache with key: " + databaseConnKey);
                         conn.clearWarnings();
                         return conn;
                     }
+                    removeConnectionFromCache(databaseConnKey, conn);
                 } catch (Exception e) { // remove invalid connection
                     LOGGER.debug("Invalid connection with key: " + databaseConnKey + " Exception: " + e.getMessage());
-                    CONNECTION_MAP.remove(databaseConnKey);
+                    removeConnectionFromCache(databaseConnKey, conn);
                 }
             }
             final Driver d;
@@ -229,6 +245,26 @@ public class CachedConnectionFactory implements DBConnectionFactory {
                 throw new IOException("Connection to database '" + jdbcUrl + "' timed out");
             }
         }
+    }
+
+    /**
+     * Always use this method to remove a connection from the {@link #CONNECTION_MAP} since it ensures
+     * that the connection is closed before removing it from the map.
+     * @param databaseConnKey the key of the connection in the {@link #CONNECTION_MAP}
+     * @param conn the {@link Connection} to remove from the {@link #CONNECTION_MAP}
+     */
+    private void removeConnectionFromCache(final ConnectionKey databaseConnKey, final Connection conn) {
+        try {
+            if (!conn.isClosed()) {
+                LOGGER.debug("Closing connection with key: " + databaseConnKey);
+                conn.close();
+            }
+        } catch (Exception ex) {
+            LOGGER.debug("Error closing connection:" + ex.getMessage(), ex);
+        }
+        //remove the connection from the cache also if an exception occurs during closing
+        LOGGER.debug("Removing closed connection from cache with key: " + databaseConnKey);
+        CONNECTION_MAP.remove(databaseConnKey);
     }
 
     /**

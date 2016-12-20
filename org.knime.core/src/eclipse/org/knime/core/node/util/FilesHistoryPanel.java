@@ -55,12 +55,12 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -83,6 +83,8 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
@@ -107,6 +109,7 @@ import org.knime.core.util.SimpleFileFilter;
  * @see org.knime.core.node.util.StringHistory
  * @author Bernd Wiswedel, University of Konstanz
  */
+@SuppressWarnings("serial")
 public final class FilesHistoryPanel extends JPanel {
     /**
      * Enum for whether and which location validation should be performed.
@@ -163,6 +166,7 @@ public final class FilesHistoryPanel extends JPanel {
         /**
          * Color for error messages.
          */
+        @SuppressWarnings("hiding")
         protected static final Color ERROR = Color.RED;
 
         /**
@@ -378,8 +382,7 @@ public final class FilesHistoryPanel extends JPanel {
         }
     }
 
-    private final List<ChangeListener> m_changeListener =
-            new ArrayList<ChangeListener>();
+    private final List<ChangeListener> m_changeListener = new ArrayList<ChangeListener>();
 
     private final JComboBox<String> m_textBox;
 
@@ -429,20 +432,19 @@ public final class FilesHistoryPanel extends JPanel {
             final String... suffixes) {
         this(fvm, historyID, showErrorMessage ? LocationValidation.FileInput : LocationValidation.None, suffixes);
     }
+
+
     /**
-     * Creates new instance, sets properties, for instance renderer,
-     * accordingly.
+     * Creates new instance, sets properties, for instance renderer, accordingly.
      *
-     * @param historyID identifier for the string history, see
-     *            {@link StringHistory}
+     * @param historyID identifier for the string history, see {@link StringHistory}
      * @param suffixes the set of suffixes for the file chooser
      * @param fvm model to allow to use a variable instead of the text field.
      * @param validation what kind of validation on the location should be performed
      * @since 2.11
      */
-    public FilesHistoryPanel(final FlowVariableModel fvm,
-            final String historyID, final LocationValidation validation,
-            final String... suffixes) {
+    public FilesHistoryPanel(final FlowVariableModel fvm, final String historyID, final LocationValidation validation,
+        final String... suffixes) {
         if (historyID == null || suffixes == null) {
             throw new IllegalArgumentException("Argument must not be null.");
         }
@@ -467,38 +469,9 @@ public final class FilesHistoryPanel extends JPanel {
         m_textBox.addItemListener(new ItemListener() {
             @Override
             public void itemStateChanged(final ItemEvent e) {
-                if ((e.getStateChange() == ItemEvent.SELECTED)
-                        && (e.getItem() != null)) {
-                    ChangeEvent ev = new ChangeEvent(FilesHistoryPanel.this);
-                    for (ChangeListener cl : m_changeListener) {
-                        cl.stateChanged(ev);
-                    }
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    fileLocationChanged();
                 }
-            }
-        });
-        ((JTextField) m_textBox.getEditor().getEditorComponent()).addKeyListener(new KeyListener() {
-            @Override
-            public void keyTyped(final KeyEvent e) {
-            }
-
-            @Override
-            public void keyReleased(final KeyEvent e) {
-                ChangeEvent ev = new ChangeEvent(FilesHistoryPanel.this);
-                for (ChangeListener cl : m_changeListener) {
-                    cl.stateChanged(ev);
-                }
-            }
-
-            @Override
-            public void keyPressed(final KeyEvent e) {
-            }
-        });
-
-        // install listeners to update warn message whenever file name changes
-        m_textBox.addItemListener(new ItemListener() {
-            @Override
-            public void itemStateChanged(final ItemEvent e) {
-                fileLocationChanged();
             }
         });
 
@@ -538,10 +511,7 @@ public final class FilesHistoryPanel extends JPanel {
                 if (newFile != null) {
                     m_textBox.setSelectedItem(newFile);
                     StringHistory.getInstance(m_historyID).add(newFile);
-                    ChangeEvent ev = new ChangeEvent(FilesHistoryPanel.this);
-                    for (ChangeListener cl : m_changeListener) {
-                        cl.stateChanged(ev);
-                    }
+                    fileLocationChanged();
                 }
             }
         });
@@ -577,12 +547,39 @@ public final class FilesHistoryPanel extends JPanel {
             fvm.addChangeListener(new ChangeListener() {
                 @Override
                 public void stateChanged(final ChangeEvent evt) {
-                    FlowVariableModel wvm =
-                            (FlowVariableModel)(evt.getSource());
-                    m_textBox.setEnabled(!wvm.isVariableReplacementEnabled());
-                    m_chooseButton.setEnabled(!wvm
-                        .isVariableReplacementEnabled());
+                    FlowVariableModel wvm = (FlowVariableModel)(evt.getSource());
+                    boolean variableReplacementEnabled = wvm.isVariableReplacementEnabled();
+                    m_textBox.setEnabled(!variableReplacementEnabled);
+                    m_chooseButton.setEnabled(!variableReplacementEnabled);
+                    if (variableReplacementEnabled) {
+                        // if the location is overwritten by a variable show its value
+                        wvm.getVariableValue().ifPresent(fv -> setSelectedFile(fv.getStringValue()));
+                    }
                     fileLocationChanged();
+                }
+            });
+            this.addAncestorListener(new AncestorListener() {
+
+                @Override
+                public void ancestorRemoved(final AncestorEvent event) {
+                }
+
+                @Override
+                public void ancestorMoved(final AncestorEvent event) {
+                }
+
+                @Override
+                public void ancestorAdded(final AncestorEvent event) {
+                    if (fvm.isVariableReplacementEnabled() && fvm.getVariableValue().isPresent()) {
+                        String newPath = fvm.getVariableValue().get().getStringValue();
+                        String oldPath = getSelectedFile();
+                        if ((newPath != null) && !newPath.equals(oldPath)) {
+                            ViewUtils.invokeLaterInEDT(() -> {
+                                setSelectedFile(newPath);
+                                fileLocationChanged();
+                            });
+                        }
+                    }
                 }
             });
         } else {
@@ -643,6 +640,16 @@ public final class FilesHistoryPanel extends JPanel {
         }
         fileChooser.setFileSelectionMode(m_selectMode);
         fileChooser.setDialogType(m_dialogType);
+
+        // AP-2562
+        // It seems only resized event is happening when showing the dialog
+        // Grabbing the focus then makes two clicks to single click selection.
+        fileChooser.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(final ComponentEvent e) {
+                fileChooser.grabFocus();
+            }
+        });
 
         try {
             URL url = FileUtil.toURL(getSelectedFile());
@@ -848,7 +855,7 @@ public final class FilesHistoryPanel extends JPanel {
     private void fileLocationChanged() {
         String selFile = getSelectedFile();
         m_warnMsg.setText("");
-        if (selFile != null && selFile.length() > 0) {
+        if (StringUtils.isNotEmpty(selFile)) {
             try {
                 URL url = FileUtil.toURL(selFile);
                 m_warnMsg.checkLocation(url);
@@ -859,6 +866,8 @@ public final class FilesHistoryPanel extends JPanel {
                 // ignore
             }
         }
+        final ChangeEvent changeEvent = new ChangeEvent(this);
+        m_changeListener.stream().forEach(c -> c.stateChanged(changeEvent));
     }
 
     /**
@@ -985,5 +994,16 @@ public final class FilesHistoryPanel extends JPanel {
      */
     public void addToHistory() {
         StringHistory.getInstance(m_historyID).add(getSelectedFile());
+    }
+
+    /**
+     * @return true if the value is replaced by a variable.
+     * @since 3.3
+     */
+    public boolean isVariableReplacementEnabled(){
+        if(m_flowVariableButton == null){
+            return false;
+        }
+        return m_flowVariableButton.getFlowVariableModel().isVariableReplacementEnabled();
     }
 }

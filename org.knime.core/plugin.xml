@@ -109,6 +109,28 @@
          </renderer>
       </dataValue>
       <dataValue
+            valueClass="org.knime.core.data.collection.ListDataValue">
+         <renderer
+               rendererFactoryClass="org.knime.core.data.collection.CollectionValueRenderer$ShortRendererFactory"
+               suggestAsDefault="true">
+         </renderer>
+         <renderer
+               rendererFactoryClass="org.knime.core.data.collection.CollectionValueRenderer$FullRendererFactory"
+               suggestAsDefault="false">
+         </renderer>
+      </dataValue>
+      <dataValue
+            valueClass="org.knime.core.data.collection.SetDataValue">
+         <renderer
+               rendererFactoryClass="org.knime.core.data.collection.CollectionValueRenderer$ShortRendererFactory"
+               suggestAsDefault="true">
+         </renderer>
+         <renderer
+               rendererFactoryClass="org.knime.core.data.collection.CollectionValueRenderer$FullRendererFactory"
+               suggestAsDefault="false">
+         </renderer>
+      </dataValue>
+      <dataValue
             valueClass="org.knime.core.data.image.png.PNGImageValue">
          <renderer
                rendererFactoryClass="org.knime.core.data.image.png.PNGImageValueRendererFactoryUtil$StandardRendererFactory"
@@ -229,10 +251,6 @@
       <databaseUtility
             class="org.knime.core.node.port.database.OracleUtility"
             database="oracle">
-      </databaseUtility>
-      <databaseUtility
-            class="org.knime.core.node.port.database.SQLServerUtility"
-            database="sqlserver">
       </databaseUtility>
       <databaseUtility
             class="org.knime.core.node.port.database.DB2Utility"
@@ -520,6 +538,14 @@
             name="Shape"
             objectClass="org.knime.core.node.port.viewproperty.ShapeHandlerPortObject"
             objectSerializer="org.knime.core.node.port.viewproperty.ShapeHandlerPortObject$Serializer"
+            specClass="org.knime.core.data.DataTableSpec">
+      </portType>
+      <portType
+            color="#1eb9dc"
+            hidden="false"
+            name="FilterDefinition"
+            objectClass="org.knime.core.node.port.viewproperty.FilterDefinitionHandlerPortObject"
+            objectSerializer="org.knime.core.node.port.viewproperty.FilterDefinitionHandlerPortObject$Serializer"
             specClass="org.knime.core.data.DataTableSpec">
       </portType>
       <portType

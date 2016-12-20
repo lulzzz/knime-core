@@ -396,10 +396,14 @@ public class DatabaseUtility {
     }
 
     /**
-     * @param connSettings
-     * @return {@link DBTableCreator} to create a table in database
+     * Class that creates a new table.
+     * @param schema the optional schema name (can be <code>null</code>)
+     * @param tableName the table name
+     * @param isTempTable <code>true</code> if this is a temporary table
+     * @return {@link DBTableCreator} to generate create table statement
+     * @since 3.3
      */
-    public DBTableCreator getTableCreator(final DatabaseConnectionSettings connSettings) {
-        return new DBTableCreatorImpl(connSettings);
+    public DBTableCreator getTableCreator(final String schema, final String tableName, final boolean isTempTable) {
+        return new DBTableCreatorImpl(getStatementManipulator(), schema, tableName, isTempTable);
     }
 }

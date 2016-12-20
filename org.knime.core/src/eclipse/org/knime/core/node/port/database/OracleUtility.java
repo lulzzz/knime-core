@@ -50,6 +50,7 @@ package org.knime.core.node.port.database;
 import org.knime.core.node.port.database.aggregation.DBAggregationFunctionFactory;
 import org.knime.core.node.port.database.connection.DBConnectionFactory;
 import org.knime.core.node.port.database.connection.DBDriverFactory;
+import org.knime.core.node.port.database.tablecreator.DBTableCreator;
 
 
 /**
@@ -168,5 +169,13 @@ public class OracleUtility extends DatabaseUtility {
     @Override
     public boolean supportsCase() {
         return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public DBTableCreator getTableCreator(final String schema, final String tableName, final boolean isTempTable) {
+        return new OracleTableCreator(getStatementManipulator(), schema, tableName, isTempTable);
     }
 }
