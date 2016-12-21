@@ -61,7 +61,9 @@ import java.awt.event.ItemListener;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 
 import javax.swing.AbstractButton;
@@ -73,6 +75,7 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
@@ -85,6 +88,7 @@ import org.knime.core.node.NotConfigurableException;
 import org.knime.core.node.defaultnodesettings.SettingsModelAuthentication.AuthenticationType;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.workflow.CredentialsProvider;
+import org.knime.core.util.Pair;
 
 /**
  * A component that allows a user to enter username/password or select credentials variable.
@@ -100,16 +104,11 @@ public final class DialogComponentAuthentication extends DialogComponent impleme
 
     private final ButtonGroup m_authenticationType = new ButtonGroup();
 
-    private final JRadioButton m_typeNone =
-            createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.NONE, m_authenticationType, this);
-    private final JRadioButton m_typeUser =
-            createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.USER, m_authenticationType, this);
-    private final JRadioButton m_typeUserPwd =
-            createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.USER_PWD, m_authenticationType, this);
-    private final JRadioButton m_typeCredential =
-            createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.CREDENTIALS, m_authenticationType, this);
-    private final JRadioButton m_typeKerberos =
-            createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.KERBEROS, m_authenticationType, this);
+    private final JRadioButton m_typeNone;
+    private final JRadioButton m_typeUser;
+    private final JRadioButton m_typeUserPwd;
+    private final JRadioButton m_typeCredential;
+    private final JRadioButton m_typeKerberos;
 
     private final JComboBox<String> m_credentialField = new JComboBox<>();
 
@@ -118,6 +117,9 @@ public final class DialogComponentAuthentication extends DialogComponent impleme
     private final JTextField m_usernameField = new JTextField(20);
 
     private final JPasswordField m_passwordField = new JPasswordField(20);
+
+    private final JLabel m_usernameLabel = new JLabel("Username:", SwingConstants.LEFT);
+    private final JLabel m_passwordLabel = new JLabel("Password:", SwingConstants.LEFT);
 
     private final Component m_credentialPanel = getCredentialPanel();
 
@@ -130,16 +132,21 @@ public final class DialogComponentAuthentication extends DialogComponent impleme
     private JPanel m_rootPanel;
 
     private HashSet<AuthenticationType> m_supportedTypes;
+    private Map<AuthenticationType, Pair<String, String>> m_namingMap = new HashMap<>();
 
-    private static JRadioButton createAuthenticationTypeButton(final AuthenticationType type, final ButtonGroup group,
+    private JRadioButton createAuthenticationTypeButton(final AuthenticationType type, final ButtonGroup group,
         final ActionListener l) {
-        final JRadioButton button = new JRadioButton(type.getText());
+        boolean contains = m_namingMap.containsKey(type);
+        String buttonLabel = contains ? m_namingMap.get(type).getFirst() : type.getText();
+        String toolTip = contains ? m_namingMap.get(type).getSecond() : type.getToolTip();
+
+        final JRadioButton button = new JRadioButton(buttonLabel);
         button.setActionCommand(type.getActionCommand());
         if (type.isDefault()) {
             button.setSelected(true);
         }
         if (type.getToolTip() != null) {
-            button.setToolTipText(type.getToolTip());
+            button.setToolTipText(toolTip);
         }
         if (l != null) {
             button.addActionListener(l);
@@ -167,9 +174,33 @@ public final class DialogComponentAuthentication extends DialogComponent impleme
      */
     public DialogComponentAuthentication(final SettingsModelAuthentication authModel, final String label,
         final AuthenticationType... supportedTypes) {
+        this(authModel, label, null, supportedTypes);
+    }
+
+    /** Constructor for this dialog component
+     *
+     * @param authModel The {@link SettingsModel}
+     * @param label The label.
+     * @param namingMap The map containing the {@link AuthenticationType} as key and a pair
+     *          consisting of the label and the tooltip String for the radio buttons for authentication types
+     * @param supportedTypes the authentication {@link AuthenticationType}s to display
+     * @since 3.3
+     */
+    public DialogComponentAuthentication(final SettingsModelAuthentication authModel, final String label,
+        final HashMap<AuthenticationType, Pair<String, String>> namingMap, final AuthenticationType... supportedTypes) {
         super(authModel);
         m_supportedTypes = new HashSet<>(Arrays.asList(supportedTypes));
         m_label = label;
+
+        if (namingMap !=null) {
+            m_namingMap = namingMap;
+        }
+        m_typeNone = createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.NONE, m_authenticationType, this);
+        m_typeUser = createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.USER, m_authenticationType, this);
+        m_typeUserPwd = createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.USER_PWD, m_authenticationType, this);
+        m_typeCredential = createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.CREDENTIALS, m_authenticationType, this);
+        m_typeKerberos = createAuthenticationTypeButton(SettingsModelAuthentication.AuthenticationType.KERBEROS, m_authenticationType, this);
+
         m_rootPanel = getRootPanel();
         getComponentPanel().setLayout(new GridBagLayout());
         getComponentPanel().add(m_rootPanel);
@@ -324,7 +355,7 @@ public final class DialogComponentAuthentication extends DialogComponent impleme
         gbc.gridwidth = 1;
         gbc.weightx = 1;
         gbc.insets = new Insets(0, LEFT_INSET, 0, 5);
-        panel.add(new JLabel("Username:", 10), gbc);
+        panel.add(m_usernameLabel, gbc);
         gbc.gridx = 1;
         gbc.insets = NEUTRAL_INSET;
         gbc.ipadx = 10;
@@ -340,19 +371,22 @@ public final class DialogComponentAuthentication extends DialogComponent impleme
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.gridwidth = 1;
-        gbc.weightx = 1;
+        gbc.weightx = 0;
         gbc.insets = new Insets(0, LEFT_INSET, 0, 5);
-        panel.add(new JLabel("Username:", 10), gbc);
+        panel.add(m_usernameLabel, gbc);
         gbc.gridx = 1;
         gbc.insets = NEUTRAL_INSET;
         gbc.ipadx = 10;
+        gbc.weightx = 1;
         panel.add(m_usernameField, gbc);
         gbc.ipadx = 0;
         gbc.gridx = 0;
         gbc.gridy++;
+        gbc.weightx = 0;
         gbc.insets = new Insets(0, LEFT_INSET, 0, 5);
-        panel.add(new JLabel("Password:", 10), gbc);
+        panel.add(m_passwordLabel, gbc);
         gbc.gridx = 1;
+        gbc.weightx = 1;
         gbc.insets = NEUTRAL_INSET;
         panel.add(m_passwordField, gbc);
         return panel;
@@ -568,5 +602,27 @@ public final class DialogComponentAuthentication extends DialogComponent impleme
     public void actionPerformed(final ActionEvent e) {
         updateModel();
         updatePanel();
+    }
+
+    /**
+     * Set the text displayed in the usernameLabel
+     *
+     * @param usernameLabel the label text to be set
+     * @since 3.3
+     */
+    public void setUsernameLabel(final String usernameLabel) {
+        m_usernameLabel.setText(usernameLabel);
+        updateComponent();
+    }
+
+    /**
+     * Set the text displayed in the passwordLabel
+     *
+     * @param passwordLabel the label text to be set
+     * @since 3.3
+     */
+    public void setPasswordLabel(final String passwordLabel) {
+        m_passwordLabel.setText(passwordLabel);
+        updateComponent();
     }
 }

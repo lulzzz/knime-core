@@ -1053,13 +1053,14 @@ public final class FileUtil {
     }
 
     /**
-     * Returns the file path from a 'file' or 'knime' URL. For the latter the file is tried to be resolved, whereby
-     * only local files (e.g. workflow relative URLs) are successfully resolved. If the 'knime' URL points to a file
-     * located on a KNIME server it throws an exception with a proper cause and message.
+     * Returns the file path from a 'file' or 'knime' URL. For the latter the file is tried to be resolved, whereby only
+     * local files (e.g. workflow relative URLs) are successfully resolved. If the 'knime' URL points to a non-local
+     * file, <code>null</code> is returned.
      *
      * @param fileUrl an URL with the 'file' or 'knime' protocol
-     * @return the path
-     * @throws IllegalArgumentException if the URL is not denote a local file.
+     * @return the path or <code>null</code>
+     * @throws IllegalArgumentException if the URL protocol is neither 'file' nor 'knime' or resolving a 'knime'-URL
+     *             fails
      */
     public static File getFileFromURL(final URL fileUrl) {
         if (fileUrl.getProtocol().equalsIgnoreCase("file")) {
@@ -1218,18 +1219,13 @@ public final class FileUtil {
 
         if (urlConnection instanceof HttpURLConnection) {
             ((HttpURLConnection)urlConnection).setRequestMethod(httpMethod);
+            ((HttpURLConnection)urlConnection).setChunkedStreamingMode(1 << 20);
+            urlConnection = new HttpURLConnectionDecorator((HttpURLConnection)urlConnection);
         }
 
         urlConnection.setDoOutput(true);
         urlConnection.connect();
 
-        if (urlConnection instanceof HttpURLConnection) {
-            HttpURLConnection c = (HttpURLConnection)urlConnection;
-            if (c.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                throw new IOException("Error while writing to '" + c.getURL() + "': " + c.getResponseCode() + " - "
-                    + c.getResponseMessage());
-            }
-        }
         return urlConnection;
     }
 
@@ -1275,13 +1271,25 @@ public final class FileUtil {
      * @since 2.6 */
     public static InputStream openInputStream(final String loc)
         throws IOException, InvalidSettingsException {
+        return openInputStream(loc, urlTimeout);
+    }
+
+    /** Opens a buffered input stream for the location (file path or URL).
+     * @param loc the location; can be both a file path or URL.
+     * @param timeoutInMilliseconds The timeout in milliseconds ({@code >0}).
+     * @return a buffered input stream.
+     * @throws IOException Forwarded from file input stream or url.openStream.
+     * @throws InvalidSettingsException If the argument is invalid or null.
+     * @since 3.3*/
+    public static InputStream openInputStream(final String loc, final int timeoutInMilliseconds)
+        throws IOException, InvalidSettingsException {
         if (loc == null || loc.length() == 0) {
             throw new InvalidSettingsException("No location provided");
         }
         InputStream stream;
         try {
             URL url = new URL(loc);
-            stream = FileUtil.openStreamWithTimeout(url);
+            stream = FileUtil.openStreamWithTimeout(url, timeoutInMilliseconds);
         } catch (MalformedURLException mue) {
             File file = new File(loc);
             if (!file.exists()) {

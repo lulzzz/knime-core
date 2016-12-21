@@ -284,6 +284,19 @@ public final class CredentialsStore implements Observer {
         m_manager.setDirty();
     }
 
+    /** Adds the credentials defined in the argument to this store. Used when running 'external' workflows that need
+     * to inherit credentials from the calling node/workflow.
+     * @param v Credentials flow variable.
+     * @throws IllegalArgumentException If flow variable doesn't represent credentials.
+     * @since 3.3
+     */
+    public void addFromFlowVariable(final FlowVariable v) {
+        CheckUtils.checkArgument(v.getType().equals(FlowVariable.Type.CREDENTIALS),
+            "Not a crendentials flow variable: %s", v);
+        CredentialsFlowVariableValue credentialsValue = v.getCredentialsValue();
+        add(new Credentials(credentialsValue.getName(), credentialsValue.getLogin(), credentialsValue.getPassword()));
+    }
+
     /** Framework private method to update or add a credentials object. Used by the Credentials quickform node
      * to hijack the store and add/fix. Subject to change in the next feature release.
      *
@@ -422,15 +435,17 @@ public final class CredentialsStore implements Observer {
         public void doAfterLoadFromDisc(final WorkflowLoadHelper loadHelper,
             final CredentialsProvider credProvider, boolean isExecuted, boolean isInactive);
 
-        /** Called when the workflow credentials change on a workflow. Credential QF nodes in the workflow can then
+        /**
+         * Called when the workflow credentials change on a workflow. Credential QF nodes in the workflow can then
          * inherit the modified password from the workflow. Used to address AP-5974.
-         * <p>Method is only called on non-executed nodes; a configure call follows after all nodes in the workflow
-         * have been updated.
+         * <p>
+         * Method is only called on non-executed nodes; a configure call follows after all nodes in the workflow have
+         * been updated.
+         *
          * @param workflowCredentials read-only list of workflow credentials.
+         * @since 3.3
          */
         public default void onWorkfowCredentialsChanged(final Collection<Credentials> workflowCredentials) {
         }
-
     }
-
 }
