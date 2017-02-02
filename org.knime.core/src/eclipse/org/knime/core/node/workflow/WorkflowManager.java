@@ -7422,22 +7422,6 @@ public final class WorkflowManager extends NodeContainer implements NodeUIInform
 
     /** {@inheritDoc} */
     @Override
-    WorkflowExecutionResult createInactiveExecutionResult() {
-        try (WorkflowLock lock = lock()) {
-            WorkflowExecutionResult result = new WorkflowExecutionResult(getID());
-            NodeContainer.saveInactiveExecutionResult(result);
-            Set<NodeID> bfsSortedSet = m_workflow.createBreadthFirstSortedList(m_workflow.getNodeIDs(), true).keySet();
-            for (NodeID id : bfsSortedSet) {
-                NodeContainerExecutionResult subResult = getNodeContainer(id).createInactiveExecutionResult();
-                result.addNodeExecutionResult(id, subResult);
-            }
-            result.setSuccess(true);
-            return result;
-        }
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public void loadExecutionResult(final NodeContainerExecutionResult result, final ExecutionMonitor exec,
         final LoadResult loadResult) {
         CheckUtils.checkArgument(result instanceof WorkflowExecutionResult, "Argument must be instance of \"%s\": %s",

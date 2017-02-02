@@ -46,9 +46,14 @@ package org.knime.core.node.workflow.execresult;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
+import org.knime.core.node.NodeLogger;
 import org.knime.core.node.workflow.NodeID;
 import org.knime.core.node.workflow.WorkflowManager;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Specialized execution result for {@link WorkflowManager}. Offers access
@@ -56,7 +61,9 @@ import org.knime.core.node.workflow.WorkflowManager;
  * @author Bernd Wiswedel, University of Konstanz
  */
 public class WorkflowExecutionResult extends NodeContainerExecutionResult {
-    
+
+    private final static NodeLogger LOGGER = NodeLogger.getLogger(WorkflowExecutionResult.class);
+
     private Map<NodeID, NodeContainerExecutionResult> m_execResultMap =
         new LinkedHashMap<NodeID, NodeContainerExecutionResult>();
     
@@ -68,13 +75,35 @@ public class WorkflowExecutionResult extends NodeContainerExecutionResult {
      * the target workflow will correct the prefix).
      * @throws NullPointerException If the argument is null.
      */
-    public WorkflowExecutionResult(final NodeID baseID) {
+    @JsonCreator
+    public WorkflowExecutionResult(@JsonProperty("baseID") final NodeID baseID) {
         if (baseID == null) {
             throw new NullPointerException();
         }
         m_baseID = baseID;
     }
-    
+
+    /**
+     * Copy constructor.
+     *
+     * @param toCopy The instance to copy.
+     * @since 3.3
+     */
+    public WorkflowExecutionResult(final WorkflowExecutionResult toCopy) {
+        m_baseID = toCopy.m_baseID;
+
+        for (Entry<NodeID, NodeContainerExecutionResult> entry : toCopy.m_execResultMap.entrySet()) {
+            final NodeContainerExecutionResult subresultToCopy = entry.getValue();
+            if (subresultToCopy instanceof NativeNodeContainerExecutionResult) {
+                m_execResultMap.put(entry.getKey(), new NativeNodeContainerExecutionResult((NativeNodeContainerExecutionResult) subresultToCopy));
+            } else if (subresultToCopy instanceof SubnodeContainerExecutionResult) {
+                m_execResultMap.put(entry.getKey(), new SubnodeContainerExecutionResult((SubnodeContainerExecutionResult) subresultToCopy));
+            } else if (subresultToCopy instanceof WorkflowExecutionResult) {
+                m_execResultMap.put(entry.getKey(), new WorkflowExecutionResult((WorkflowExecutionResult) subresultToCopy));
+            }
+        }
+    }
+
     /**@return The base id of the workflow. Used to amend the node ids in
      * {@link #getExecutionResultMap()}. */
     public NodeID getBaseID() {
@@ -83,8 +112,19 @@ public class WorkflowExecutionResult extends NodeContainerExecutionResult {
     
     /** @return The map containing node id to their execution result, 
      * never null. */
+    @JsonProperty("execResults")
     public Map<NodeID, NodeContainerExecutionResult> getExecutionResultMap() {
         return m_execResultMap;
+    }
+
+    /**
+     * Private setter for the internal execution result map. For deserialization purposes only.
+     *
+     * @param resultMap A map with NodeContainerExecutionResults
+     */
+    @JsonProperty("execResults")
+    private void setExecutionResultMap(final Map<NodeID, NodeContainerExecutionResult> resultMap) {
+        m_execResultMap = resultMap;
     }
 
     /**
@@ -114,7 +154,7 @@ public class WorkflowExecutionResult extends NodeContainerExecutionResult {
         NodeID id = new NodeID(m_baseID, idSuffix);
         NodeContainerExecutionStatus status = m_execResultMap.get(id);
         if (status == null) {
-            getLogger().debug("No execution status for node with suffix " 
+            LOGGER.debug("No execution status for node with suffix "
                     + idSuffix + "; return FAILURE");
             status = NodeContainerExecutionStatus.FAILURE;
         }
