@@ -50,6 +50,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.math3.linear.MatrixUtils;
+import org.apache.commons.math3.linear.RealMatrix;
 import org.knime.core.data.DataCell;
 import org.knime.core.data.DataRow;
 import org.knime.core.data.DoubleValue;
@@ -279,6 +281,15 @@ public class RegressionTrainingRow {
      */
     public Matrix getParameter() {
         return m_parameter;
+    }
+
+    /**
+     * Returns a {@link RealMatrix} with values of the parameters retrieved from the learning columns.
+     * @return the parameters
+     * @since 3.3
+     */
+    public RealMatrix getParameterApache() {
+        return MatrixUtils.createRealMatrix(m_parameter.getArray());
     }
 }
 
