@@ -90,6 +90,7 @@ public class WorkflowExecutionResult extends NodeContainerExecutionResult {
      * @since 3.3
      */
     public WorkflowExecutionResult(final WorkflowExecutionResult toCopy) {
+        super(toCopy);
         m_baseID = toCopy.m_baseID;
 
         for (Entry<NodeID, NodeContainerExecutionResult> entry : toCopy.m_execResultMap.entrySet()) {

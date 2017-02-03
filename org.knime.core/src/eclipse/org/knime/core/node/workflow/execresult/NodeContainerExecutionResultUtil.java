@@ -57,7 +57,7 @@ import org.knime.core.node.workflow.SubNodeContainer;
 
 /**
  * Utility class to work with {@linke NodeContainerExecutionResult} objects, e.g. make a deep copy.
- * 
+ *
  * @author Bjoern Lohrmann, KNIME.com GmbH
  * @since 3.3
  */
@@ -77,7 +77,7 @@ public class NodeContainerExecutionResultUtil {
         if (result instanceof NativeNodeContainerExecutionResult) {
             inactiveResult = new NativeNodeContainerExecutionResult((NativeNodeContainerExecutionResult)result);
         } else if (result instanceof SubnodeContainerExecutionResult) {
-            inactiveResult = new SubnodeContainerExecutionResult(((SubnodeContainerExecutionResult)result).getBaseID());
+            inactiveResult = new SubnodeContainerExecutionResult((SubnodeContainerExecutionResult)result);
         } else if (result instanceof WorkflowExecutionResult) {
             inactiveResult = new WorkflowExecutionResult((WorkflowExecutionResult)result);
         } else {

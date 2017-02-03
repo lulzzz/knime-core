@@ -74,6 +74,7 @@ public class NativeNodeContainerExecutionResult extends NodeContainerExecutionRe
      * @since 3.3
      */
     public NativeNodeContainerExecutionResult(final NativeNodeContainerExecutionResult toCopy) {
+        super(toCopy);
         m_nodeExecutionResult = new NodeExecutionResult(toCopy.m_nodeExecutionResult);
     }
 

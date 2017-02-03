@@ -80,6 +80,7 @@ public final class SubnodeContainerExecutionResult extends NodeContainerExecutio
      * @since 3.3
      */
     public SubnodeContainerExecutionResult(final SubnodeContainerExecutionResult toCopy) {
+        super(toCopy);
         m_baseID = toCopy.m_baseID;
         m_workflowExecutionResult = new WorkflowExecutionResult(toCopy.m_workflowExecutionResult);
     }

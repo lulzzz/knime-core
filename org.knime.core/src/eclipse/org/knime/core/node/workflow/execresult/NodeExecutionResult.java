@@ -89,10 +89,17 @@ public class NodeExecutionResult implements NodeContentPersistor {
      * @since 3.3
      */
     public NodeExecutionResult(final NodeExecutionResult toCopy) {
-        m_internalHeldPortObjects = Arrays.copyOf(toCopy.m_internalHeldPortObjects, toCopy.m_internalHeldPortObjects.length);
+        if (toCopy.m_internalHeldPortObjects != null) {
+            m_internalHeldPortObjects =
+                Arrays.copyOf(toCopy.m_internalHeldPortObjects, toCopy.m_internalHeldPortObjects.length);
+        }
         m_nodeInternDir = toCopy.m_nodeInternDir;
-        m_portObjects = Arrays.copyOf(toCopy.m_portObjects, toCopy.m_portObjects.length);
-        m_portObjectSpecs = Arrays.copyOf(toCopy.m_portObjectSpecs, toCopy.m_portObjectSpecs.length);
+        if (toCopy.m_portObjects != null) {
+            m_portObjects = Arrays.copyOf(toCopy.m_portObjects, toCopy.m_portObjects.length);
+        }
+        if (toCopy.m_portObjectSpecs != null) {
+            m_portObjectSpecs = Arrays.copyOf(toCopy.m_portObjectSpecs, toCopy.m_portObjectSpecs.length);
+        }
         m_warningMessage = toCopy.m_warningMessage;
         m_needsResetAfterLoad = toCopy.m_needsResetAfterLoad;
     }
