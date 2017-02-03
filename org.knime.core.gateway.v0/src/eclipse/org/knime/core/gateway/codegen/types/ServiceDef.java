@@ -48,55 +48,58 @@
  */
 package org.knime.core.gateway.codegen.types;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.knime.core.node.util.CheckUtils;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  *
  * @author Martin Horn, University of Konstanz
  */
-@JsonTypeInfo(use=JsonTypeInfo.Id.NONE)
-public class ServiceDef {
+@JsonPropertyOrder({"name", "description", "namespace", "methods"})
+public class ServiceDef extends AbstractDef {
+
+    private final String m_description;
+
+    private String m_namespace;
 
     private String m_name;
 
     private List<ServiceMethod> m_methods;
 
-    private List<String> m_imports = new ArrayList<String>();
-
     /**
      *
      */
-    @JsonIgnore
-    public ServiceDef(final String name, final ServiceMethod... methods) {
-        m_name = name;
-        m_methods = Arrays.asList(methods);
-    }
-
-    @JsonIgnore
-    public ServiceDef addImports(final String... imports) {
-        for (String s : imports) {
-            m_imports.add(s);
-        }
-        return this;
-    }
-
-    /**
-     *
-     */
-    public ServiceDef(@JsonProperty("name") final String name,
-        @JsonProperty("methods") final ServiceMethod[] methods,
-        @JsonProperty("imports") final String[] imports) {
+    public ServiceDef(
+        @JsonProperty("description") final String description,
+        @JsonProperty("namespace") final String namespace,
+        @JsonProperty("name") final String name,
+        @JsonProperty("methods") final ServiceMethod... methods) {
+        m_namespace = checkNamespace(namespace);
         m_name = CheckUtils.checkArgumentNotNull(name);
+        m_description = description;
         m_methods = Arrays.asList(CheckUtils.checkArgumentNotNull(methods));
-        m_imports = Arrays.asList(CheckUtils.checkArgumentNotNull(imports));
+    }
+
+    static String checkNamespace(final String namespace) {
+        CheckUtils.checkArgumentNotNull(namespace);
+        CheckUtils.checkArgument(namespace.matches("[a-z0-9]+(?:\\.[a-z0-9]+)*"),
+            "Package '%s' invalid: must be like 'abc.def.geh'", namespace);
+        return namespace;
+    }
+
+    /**
+     * @return the pkg
+     */
+    @JsonProperty("namespace")
+    public String getNamespace() {
+        return m_namespace;
     }
 
     @JsonProperty("name")
@@ -104,14 +107,23 @@ public class ServiceDef {
         return m_name;
     }
 
+    /**
+     * @return the description
+     */
+    @JsonProperty("description")
+    public String getDescription() {
+        return m_description;
+    }
+
     @JsonProperty("methods")
     public List<ServiceMethod> getMethods() {
         return m_methods;
     }
 
-    @JsonProperty("imports")
-    public List<String> getImports() {
-        return m_imports;
+    @JsonIgnore
+    public List<String> getImports(final String apiPackagePrefix) {
+        return m_methods.stream().flatMap(
+            m -> m.getImports(apiPackagePrefix)).sorted().distinct().collect(Collectors.toList());
     }
 
 }

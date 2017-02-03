@@ -44,22 +44,48 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Nov 30, 2016 (hornm): created
+ *   Dec 5, 2016 (hornm): created
  */
-package org.knime.core.gateway.codegen;
+package org.knime.core.gateway.codegen.types;
 
-import org.knime.core.gateway.codegen.EntityGenerator.ImplementationType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 /**
  *
  * @author Martin Horn, University of Konstanz
  */
-public class GenerateEntityInterfaces {
+@JsonTypeInfo(use=JsonTypeInfo.Id.NONE)
+public class MethodReturn {
 
-    public static void main(final String[] args) {
-        new EntityGenerator("src/generated", "src/eclipse/org/knime/core/gateway/codegen/EntityInterface.vm",
-            "##entityName##", "org.knime.core.gateway.v0", "org.knime.core.gateway.v0", "",
-            ImplementationType.Api).generate();
+    private final String m_description;
+
+    private final Type m_type;
+
+    public MethodReturn(
+        @JsonProperty("description") final String description,
+        @JsonProperty("type") final String type) {
+        m_type = Type.parse(type);
+        m_description = m_type.isVoid() ? null : description;
+    }
+
+    /**
+     * @return the description
+     */
+    @JsonProperty("description")
+    public String getDescription() {
+        return m_description;
+    }
+
+    @JsonProperty("type")
+    public String getTypeAsString() {
+        return m_type.toString("", "", false);
+    }
+
+    @JsonIgnore
+    public Type getType() {
+        return m_type;
     }
 
 }

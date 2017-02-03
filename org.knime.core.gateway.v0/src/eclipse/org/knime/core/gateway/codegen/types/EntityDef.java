@@ -50,68 +50,89 @@ package org.knime.core.gateway.codegen.types;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
+import org.knime.core.node.util.CheckUtils;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  *
  * @author Martin Horn, University of Konstanz
  */
-@JsonTypeInfo(use=JsonTypeInfo.Id.NONE)
-public class EntityDef {
-
-    private List<EntityField> m_fields;
-
-    private String m_name;
-
-    private List<String> m_commonEntities = new ArrayList<String>();
-
-    private List<String> m_imports = new ArrayList<String>();
+@JsonPropertyOrder({"name", "description", "namespace", "parent", "fields"})
+public class EntityDef extends AbstractDef {
 
     /**
      *
      */
-    @JsonIgnore
-    public EntityDef(final String name, final EntityField... entityFields) {
-        m_fields = Arrays.asList(entityFields);
-        m_name = name;
-    }
+    private static final String DEFAULT_IMPL_PACKAGE_PREFIX = "org.knime.core.gateway.serverproxy.service";
 
-    public EntityDef addFieldsFrom(final String... entities) {
-        for (String s : entities) {
-            m_commonEntities.add(s);
-        }
-        return this;
-    }
+    private final String m_namespace;
 
-    public EntityDef addImports(final String... imports) {
-        for (String s : imports) {
-            m_imports.add(s);
-        }
-        return this;
-    }
+    private final String m_name;
+
+    private final String m_description;
+
+    private final List<EntityField> m_fields;
+
+    private String m_parentEntityName;
+
+    private EntityDef m_parentEntity;
 
     /** Constructor used by Jackson.
+     * @param namespace
      * @param name
+     * @param description
+     * @param parentEntityName
      * @param entityFields
-     * @param commonEntities
-     * @param imports
-     * @return new object
      */
     @JsonCreator
-    public static EntityDef restoreFromJSON(
+    public EntityDef(
+        @JsonProperty("namespace") final String namespace,
         @JsonProperty("name") final String name,
-        @JsonProperty("fields") final EntityField[] entityFields,
-        @JsonProperty("commonEntities") final String[] commonEntities,
-        @JsonProperty("imports") final String[] imports) {
-        EntityDef result = new EntityDef(name, entityFields);
-        result.addFieldsFrom(commonEntities);
-        result.addImports(imports);
-        return result;
+        @JsonProperty("description") final String description,
+        @JsonProperty("parent") final String parentEntityName,
+        @JsonProperty("fields") final EntityField[] entityFields) {
+        m_namespace = ServiceDef.checkNamespace(namespace);
+        m_name = name;
+        m_description = description;
+        m_fields = Arrays.asList(entityFields);
+        m_parentEntityName = parentEntityName;
+    }
+
+    @JsonIgnore
+    public void resolveParent(final Map<String, EntityDef> entityDef) {
+        if (m_parentEntityName != null) {
+            m_parentEntity = CheckUtils.checkArgumentNotNull(entityDef.get(m_parentEntityName),
+                "No parent entity \"%s\" for child \"%s\"", m_parentEntityName, getName());
+        }
+    }
+
+    /**
+     * @return the description
+     */
+    @JsonProperty("description")
+    public String getDescription() {
+        return m_description;
+    }
+
+    /**
+     * @return the namespace
+     */
+    @JsonProperty("namespace")
+    public String getNamespace() {
+        return m_namespace;
     }
 
     @JsonProperty("name")
@@ -119,19 +140,121 @@ public class EntityDef {
         return m_name;
     }
 
+    @JsonProperty("parent")
+    public String getParent() {
+        return m_parentEntityName;
+    }
+
     @JsonProperty("fields")
     public List<EntityField> getFields() {
         return m_fields;
     }
 
-    @JsonProperty("commonEntities")
-    public List<String> getCommonEntities() {
-        return m_commonEntities;
+    @JsonIgnore
+    public String getNameWithNamespace() {
+        return m_namespace + "." + m_name;
     }
 
-    @JsonProperty("imports")
-    public List<String> getImports() {
-        return m_imports;
+    @JsonIgnore
+    public Optional<String> getParentOptional() {
+        return Optional.ofNullable(m_parentEntityName);
+    }
+
+    @JsonIgnore
+    public Collection<String> getJavaImports() {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        m_fields.stream().map(EntityField::getType).forEach(t -> result.addAll(t.getJavaImports()));
+        return result;
+    }
+
+    @JsonIgnore
+    public List<String> getImportsForDefaultClasses() {
+        return getImportsPrivate(t -> getFullyQualifiedName(
+            DEFAULT_IMPL_PACKAGE_PREFIX, "", "Default##name##", t.getNamespace(), t.getSimpleName()));
+    }
+
+    @JsonIgnore
+    public List<String> getImportsForTestClasses(final String implPackagePrefix) {
+        return getImportsPrivate(t -> getFullyQualifiedName(
+            implPackagePrefix, "test", "##name##Test", t.getNamespace(), t.getSimpleName()));
+    }
+
+    @JsonIgnore
+    public List<String> getImportsForAPIClasses(final String apiPackagePrefix) {
+        return getImportsPrivate(t -> getFullyQualifiedName(
+            apiPackagePrefix, "", "##name##", t.getNamespace(), t.getSimpleName()));
+    }
+
+    @JsonIgnore
+    public List<String> getImportsForBuilderClasses(final String implPackagePrefix) {
+        return getImportsPrivate(t -> getFullyQualifiedName(
+            implPackagePrefix, "builder", "##name##Builder", t.getNamespace(), t.getSimpleName()));
+    }
+
+    @JsonIgnore
+    private List<String> getImportsPrivate(final Function<Type, String> fullyQualifiedNameRetriever) {
+        ArrayList<String> result = new ArrayList<String>();
+        return m_fields.stream().map(EntityField::getType).flatMap(Type::getRequiredTypes)
+        .filter(Type::isEntityType)
+        .map(fullyQualifiedNameRetriever)
+        .distinct().sorted()
+        .collect(Collectors.toList());
+    }
+
+    @JsonIgnore
+    static String getFullyQualifiedName(final String packagePrefix, final String packageSuffix,
+        final String namePattern, final String namespace, final String typeName) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(packagePrefix);
+        if (namespace != null) {
+            builder.append('.').append(namespace);
+        }
+        if (StringUtils.isNotEmpty(packageSuffix)) {
+            builder.append('.').append(packageSuffix);
+        }
+        builder.append('.').append(namePattern.replace("##name##", typeName));
+        return builder.toString();
+    }
+
+    @JsonIgnore
+    public String getBuilderName() {
+        return m_name.concat("Builder");
+    }
+
+    @JsonIgnore
+    public String getTestName() {
+        return m_name.concat("Test");
+    }
+
+    @JsonIgnore
+    public String getDefaultFullyQualified() {
+        return getFullyQualifiedName(DEFAULT_IMPL_PACKAGE_PREFIX, "", "Default##name##", getNamespace(), getName());
+    }
+
+    @JsonIgnore
+    public String getTestFullyQualified(final String implPackagePrefix) {
+        return getFullyQualifiedName(implPackagePrefix, "test", "##name##Test", getNamespace(), getName());
+    }
+
+    @JsonIgnore
+    public String getBuilderNameFullyQualified(final String implPackagePrefix) {
+        return getFullyQualifiedName(implPackagePrefix, "builder", "##name##Builder", getNamespace(), getName());
+    }
+
+    @JsonIgnore
+    public String getAPINameFullyQualified(final String apiPackagePrefix) {
+        return getFullyQualifiedName(apiPackagePrefix, "", "##name##", getNamespace(), getName());
+    }
+
+    @JsonIgnore
+    public String getTestNameFullyQualified(final String implPackagePrefix) {
+        return getFullyQualifiedName(implPackagePrefix, "", "##name##Test", getNamespace(), getName());
+    }
+
+    @Override
+    public String toString() {
+        return m_name + ":\n  " +
+                m_fields.stream().map(e -> e.getTypeAsString() + " " + e.getName()).collect(Collectors.joining("\n  "));
     }
 
 }

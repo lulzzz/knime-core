@@ -59,17 +59,22 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonTypeInfo(use=JsonTypeInfo.Id.NONE)
 public class EntityField {
 
-    private String m_name;
+    private final String m_name;
+
+    private final String m_description;
 
     private Type m_type;
 
     /**
+     * @param description TODO
      *
      */
     public EntityField(
         @JsonProperty("name")final String name,
+        @JsonProperty("description")final String description,
         @JsonProperty("type")final String returnType) {
         m_name = name;
+        m_description = description;
         m_type = Type.parse(returnType);
     }
 
@@ -78,9 +83,17 @@ public class EntityField {
         return m_name;
     }
 
+    /**
+     * @return the description
+     */
+    @JsonProperty("description")
+    public String getDescription() {
+        return m_description;
+    }
+
     @JsonProperty("type")
     public String getTypeAsString() {
-        return m_type.toString("", "");
+        return m_type.toString("", "", false);
     }
 
     @JsonIgnore

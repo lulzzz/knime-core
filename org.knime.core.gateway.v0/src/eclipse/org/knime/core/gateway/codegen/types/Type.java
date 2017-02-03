@@ -49,23 +49,23 @@
 package org.knime.core.gateway.codegen.types;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import org.apache.commons.lang.RandomStringUtils;
-
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  *
  * @author Martin Horn, University of Konstanz
  */
-@JsonTypeInfo(use=JsonTypeInfo.Id.NONE)
 public class Type {
 
     private Random m_rand = new Random();
@@ -79,7 +79,8 @@ public class Type {
 
     public static final Type VOID = new Type("void");
 
-    private String m_name;
+    private final String m_namespace;
+    private final String m_simpleName;
 
     private GenericType m_genericType;
 
@@ -90,82 +91,140 @@ public class Type {
      * @param genericType
      *
      */
-    @JsonIgnore
     private Type(final GenericType genericType, final String... typeParameters) {
         m_genericType = genericType;
         m_typeParameters = Arrays.stream(typeParameters).map(t -> Type.parse(t)).collect(Collectors.toList());
         switch (genericType) {
             case LIST:
-                m_name = "List";
+                m_namespace = "java.util";
+                m_simpleName = "List";
                 break;
             case MAP:
-                m_name = "Map";
-            default:
+                m_namespace = "java.util";
+                m_simpleName = "Map";
                 break;
+            default:
+                throw new IllegalStateException("Constructor only meant for collections");
         }
     }
 
-    @JsonIgnore
     private Type(final String name) {
         m_genericType = GenericType.NONE;
-        m_name = name;
+        if (StringUtils.contains(name, ".")) {
+            m_simpleName = StringUtils.substringAfterLast(name, ".");
+            m_namespace = StringUtils.substringBeforeLast(name, ".");
+        } else {
+            m_simpleName = name;
+            m_namespace = null;
+        }
         m_typeParameters = Collections.emptyList();
     }
 
     public String toString(final String append, final String prepend) {
+        return toString(append, prepend, true);
+    }
+
+    public String toString(final String append, final String prepend, final boolean useSimpleClassName) {
         if (isVoid()) {
             return "void";
         } else if (m_typeParameters.size() == 0 && isPrimitive()) {
-            return m_name;
+            return m_simpleName;
         } else if (m_typeParameters.size() == 0) {
-            return append + m_name + prepend;
+            String className;
+            if (useSimpleClassName) {
+                className = m_simpleName;
+            } else {
+                className = m_namespace != null ? m_namespace + "." + m_simpleName : m_simpleName;
+            }
+            return append + className + prepend;
         } else {
             String[] params = new String[m_typeParameters.size()];
             for (int i = 0; i < params.length; i++) {
-                params[i] = m_typeParameters.get(i).toString(append, prepend);
+                params[i] = m_typeParameters.get(i).toString(append, prepend, useSimpleClassName);
             }
-            return m_name + "<" + String.join(", ", params) + ">";
+            return m_simpleName + "<" + String.join(", ", params) + ">";
         }
 
     }
 
-    @JsonIgnore
+    @Override
+    public String toString() {
+        return toString("", "");
+    }
+
+    /**
+     * @return the namespace
+     */
+    public String getNamespace() {
+        return m_namespace;
+    }
+
+    /**
+     * @return the simpleName
+     */
+    public String getSimpleName() {
+        return m_simpleName;
+    }
+
     public Type getTypeParameter(final int index) {
         return m_typeParameters.get(index);
     }
 
-    @JsonIgnore
     public boolean isList() {
         return m_genericType == GenericType.LIST;
     }
 
-    @JsonIgnore
     public boolean isMap() {
         return m_genericType == GenericType.MAP;
     }
 
-    @JsonIgnore
     public boolean isVoid() {
-        return m_name.equals("void");
+        return m_simpleName.equals("void");
     }
 
-    @JsonIgnore
     public boolean isPrimitive() {
         if(m_typeParameters.size() == 0) {
-        return m_name.equals("String") ||
-               m_name.equals("int") ||
-               m_name.toLowerCase().equals("double") ||
-               m_name.toLowerCase().equals("float") ||
-               m_name.toLowerCase().equals("boolean") ||
-               m_name.equals("Integer");
+            return isNamePrimitive();
         } else {
-            for (Type t : m_typeParameters) {
-                if(!t.isPrimitive()) {
-                    return false;
-                }
-            }
-            return true;
+            return m_typeParameters.stream().allMatch(t -> t.isPrimitive());
         }
+    }
+
+    public boolean isEntityType() {
+        return !isVoid() && !isPrimitive() && !isList() && !isMap();
+    }
+
+    /**
+     * @return
+     */
+    private boolean isNamePrimitive() {
+        return m_simpleName.equals("String") ||
+                m_simpleName.equals("int") || m_simpleName.equals("Integer") ||
+                m_simpleName.toLowerCase().equals("byte") ||
+                m_simpleName.toLowerCase().equals("short") ||
+                m_simpleName.toLowerCase().equals("long") ||
+                m_simpleName.toLowerCase().equals("float") ||
+                m_simpleName.toLowerCase().equals("double") ||
+                m_simpleName.toLowerCase().equals("boolean");
+    }
+
+    public Collection<String> getJavaImports() {
+        Set<String> result = new LinkedHashSet<>();
+        switch (m_genericType) {
+            case LIST:
+                result.add(List.class.getName());
+                break;
+            case MAP:
+                result.add(Map.class.getName());
+                break;
+            default:
+        }
+        m_typeParameters.stream().forEach(t -> result.addAll(t.getJavaImports()));
+        return result;
+    }
+
+    public Stream<Type> getRequiredTypes() {
+        return Stream.concat(Stream.of(this), m_typeParameters.stream());
     }
 
     public Object createRandomPrimitive() {
@@ -177,15 +236,15 @@ public class Type {
                 //TODO
                 return null;
             } else {
-                if(m_name.equals("boolean")) {
+                if(m_simpleName.equals("boolean")) {
                     return m_rand.nextBoolean();
-                } else if(m_name.equals("int")) {
+                } else if(m_simpleName.equals("int")) {
                     return m_rand.nextInt();
-                } else if(m_name.equals("float")) {
+                } else if(m_simpleName.equals("float")) {
                     return m_rand.nextFloat();
-                } else if(m_name.equals("double")) {
+                } else if(m_simpleName.equals("double")) {
                     return m_rand.nextDouble();
-                } else if(m_name.equals("String")) {
+                } else if(m_simpleName.equals("String")) {
                     return "\"" + RandomStringUtils.randomAlphanumeric(5) + "\"";
                 }
                 return null;
@@ -201,8 +260,7 @@ public class Type {
      * @param s
      * @return the newly created type
      */
-    @JsonCreator
-    public static Type parse(@JsonProperty("signature")final String s) {
+    public static Type parse(final String s) {
         if (s.startsWith("List<")) {
             return new Type(GenericType.LIST, parseTypeParameters(s));
         } else if (s.startsWith("Map<")) {
@@ -227,7 +285,6 @@ public class Type {
         System.out.println(Type.parse("Map<String, Integer>").toString("T", ""));
         System.out.println(Type.parse("Map<Test, Test2>").toString("T", ""));
         System.out.println(Type.parse("Map<Blub, Integer>").toString("", "ToThrift"));
-
     }
 
 

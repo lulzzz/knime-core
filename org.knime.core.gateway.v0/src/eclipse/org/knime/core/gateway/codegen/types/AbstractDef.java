@@ -44,22 +44,22 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Nov 30, 2016 (hornm): created
+ *   Jan 23, 2017 (wiswedel): created
  */
-package org.knime.core.gateway.codegen;
+package org.knime.core.gateway.codegen.types;
 
-import org.knime.core.gateway.codegen.EntityGenerator.ImplementationType;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 /**
- *
- * @author Martin Horn, University of Konstanz
+ * Base class for services and entity definitions.
+ * @author Bernd Wiswedel, KNIME.com, Zurich, Switzerland
  */
-public class GenerateEntityInterfaces {
-
-    public static void main(final String[] args) {
-        new EntityGenerator("src/generated", "src/eclipse/org/knime/core/gateway/codegen/EntityInterface.vm",
-            "##entityName##", "org.knime.core.gateway.v0", "org.knime.core.gateway.v0", "",
-            ImplementationType.Api).generate();
-    }
+@JsonTypeInfo(use=JsonTypeInfo.Id.NAME, include=JsonTypeInfo.As.PROPERTY, property="type")
+@JsonSubTypes({
+    @JsonSubTypes.Type(value=EntityDef.class, name="entity"),
+    @JsonSubTypes.Type(value=ServiceDef.class, name="service"),
+})
+public abstract class AbstractDef {
 
 }
