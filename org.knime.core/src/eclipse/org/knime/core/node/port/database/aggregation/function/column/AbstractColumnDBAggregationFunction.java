@@ -91,7 +91,7 @@ public abstract class AbstractColumnDBAggregationFunction implements DBAggregati
         final String columnName) {
         return getLabel() + "(" + manipulator.quoteIdentifier(tableName) + "." + manipulator.quoteIdentifier(columnName)
                 + ", " + manipulator.quoteIdentifier(tableName) + "."
-                + manipulator.quoteIdentifier(getSelectedColumnName()) + ")";
+                + manipulator.quoteIdentifier(getSelectedColumnName()) + getExtraFragment() + ")";
     }
 
     /**
@@ -101,8 +101,19 @@ public abstract class AbstractColumnDBAggregationFunction implements DBAggregati
     @Override
     public String getSQLFragment4SubQuery(final StatementManipulator manipulator, final String tableName, final String subQuery) {
         return getLabel() + "((" + subQuery + "), " + manipulator.quoteIdentifier(tableName) + "."
-                + manipulator.quoteIdentifier(getSelectedColumnName()) + ")";
+                + manipulator.quoteIdentifier(getSelectedColumnName()) +  getExtraFragment() + ")";
     }
+
+    /**
+     * This method allows to add extra statements to the SQL fragment after the column has been added.
+     *
+     * @return Additional String for the SQL fragment.
+     * @since 3.4
+     */
+    public String getExtraFragment() {
+        return "";
+    }
+
     /**
      * {@inheritDoc}
      */

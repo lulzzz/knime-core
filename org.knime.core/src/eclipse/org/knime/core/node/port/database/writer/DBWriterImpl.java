@@ -103,7 +103,7 @@ public class DBWriterImpl extends DatabaseHelper implements DBWriter {
     @Override
     public String writeData(final String table, final RowInput input, final long rowCount, final boolean appendData,
         final ExecutionMonitor exec, final Map<String, String> sqlTypes, final CredentialsProvider cp,
-        final int batchSize, final boolean insertNullForMissingCols) throws Exception {
+        final int batchSize, final boolean insertNullForMissingCols, final boolean failOnError) throws Exception {
         final DatabaseConnectionSettings conSettings = getDatabaseConnectionSettings();
         final Connection conn = conSettings.createConnection(cp);
         exec.setMessage("Waiting for free database connection...");
@@ -375,6 +375,30 @@ public class DBWriterImpl extends DatabaseHelper implements DBWriter {
                                 stmt.execute();
                             }
                         } catch (Throwable t) {
+
+                            final String errorMsg;
+                            if (batchSize > 1) {
+                                errorMsg = "Error while adding rows #" + (cnt - batchSize) + " - #" + cnt
+                                    + ", reason: " + t.getMessage();
+                            } else {
+                                errorMsg = "Error while adding row #" + cnt + " (" + row.getKey() + "), reason: "
+                                    + t.getMessage();
+                            }
+
+                            //introduced in KNIME 3.3.2
+                            if (failOnError) {
+                                try {
+                                    //rollback all changes
+                                    conn.rollback();
+                                    LOGGER.debug("Rollback complete transaction with auto commit=" + autoCommit);
+                                } catch (Throwable ex) {
+                                    LOGGER.info("Failed rollback after db exception with auto commit=" + autoCommit
+                                        + ". Rollback error: " + ex.getMessage(), ex);
+                                }
+                                throw new Exception(errorMsg, t);
+                            }
+
+
                             // Postgres will refuse any more commands in this transaction after errors
                             // Therefore we commit the changes that were possible. We commit everything at the end
                             // anyway.
@@ -384,14 +408,6 @@ public class DBWriterImpl extends DatabaseHelper implements DBWriter {
 
                             allErrors++;
                             if (errorCnt > -1) {
-                                final String errorMsg;
-                                if (batchSize > 1) {
-                                    errorMsg = "Error while adding rows #" + (cnt - batchSize) + " - #" + cnt
-                                        + ", reason: " + t.getMessage();
-                                } else {
-                                    errorMsg = "Error while adding row #" + cnt + " (" + row.getKey() + "), reason: "
-                                        + t.getMessage();
-                                }
                                 exec.setMessage(errorMsg);
                                 if (errorCnt++ < 10) {
                                     LOGGER.warn(errorMsg);

@@ -68,10 +68,14 @@ import org.eclipse.core.runtime.IExtensionRegistry;
 import org.eclipse.core.runtime.Platform;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeLogger;
+import org.knime.core.node.NodeModel;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.dialog.ExternalNodeData;
 import org.knime.core.node.dialog.InputNode;
+import org.knime.core.node.property.hilite.HiLiteHandler;
+import org.knime.core.node.property.hilite.HiLiteManager;
+import org.knime.core.node.property.hilite.HiLiteTranslator;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.core.node.util.ConvenienceMethods;
 import org.knime.core.node.web.DefaultWebTemplate;
@@ -352,30 +356,42 @@ public final class WizardExecutionController extends ExecutionController {
             // we will add it again).
             return;
         }
+        if (isSubnodeViewAvailable(source)) {
+            // add to the list so we can later avoid queuing of successors!
+            m_waitingSubnodes.add(source);
+        }
+    }
+
+    /**
+     * Checks different criteria to determine if a combined page view is available for a given subnode.
+     * @param subnodeId the {@link NodeID} of the subnode to check
+     * @return true, if a view on the subnode is available, false otherwise
+     * @since 3.4
+     */
+    public boolean isSubnodeViewAvailable(final NodeID subnodeId) {
         // potentially null when queried from contained metanode
-        NodeContainer sourceNC = m_manager.getWorkflow().getNode(source);
+        NodeContainer sourceNC = m_manager.getWorkflow().getNode(subnodeId);
         // only consider nodes that are...SubNodes and...
         if (!(sourceNC instanceof SubNodeContainer)) {
-            return;
+            return false;
         }
         SubNodeContainer subnodeSource = (SubNodeContainer)sourceNC;
         // ...active.
         if (subnodeSource.isInactive()) {
-            return;
+            return false;
         }
         // Now check if the active SubNode contains active QuickForm nodes:
         WorkflowManager subNodeWFM = subnodeSource.getWorkflowManager();
+        @SuppressWarnings("rawtypes")
         Map<NodeID, WizardNode> wizardNodeSet = subNodeWFM.findNodes(WizardNode.class, NOT_HIDDEN_FILTER, false);
         boolean allInactive = true;
         for (NodeID id : wizardNodeSet.keySet()) {
             if (!subNodeWFM.getNodeContainer(id, NativeNodeContainer.class, true).isInactive()) {
                 allInactive = false;
+                break;
             }
         }
-        if (!allInactive) {
-            // add to the list so we can later avoid queuing of successors!
-            m_waitingSubnodes.add(source);
-        }
+        return !allInactive;
     }
 
     /** {@inheritDoc} */
@@ -384,36 +400,56 @@ public final class WizardExecutionController extends ExecutionController {
         return m_waitingSubnodes.contains(source);
     }
 
-    /** Get the current wizard page. Throws exception if none is available (as per {@link #hasCurrentWizardPage()}.
-     * @return The current wizard page. */
-    public WizardPageContent getCurrentWizardPage() {
+    /**
+     * Gets the wizard page for a given node id. Throws exception if no wizard page available.
+     * @param subnodeID the node id for the subnode to retrieve the wizard page for
+     * @return The wizard page for the given node id
+     * @since 3.4
+     */
+    public WizardPageContent getWizardPage(final NodeID subnodeID) {
         WorkflowManager manager = m_manager;
         try (WorkflowLock lock = manager.lock()) {
             NodeContext.pushContext(manager);
             try {
-                return getCurrentWizardPageInternal();
+                return getWizardPageInternal(subnodeID);
             } finally {
                 NodeContext.removeLastContext();
             }
         }
     }
 
+    /** Get the current wizard page. Throws exception if none is available (as per {@link #hasCurrentWizardPage()}.
+     * @return The current wizard page. */
+    public WizardPageContent getCurrentWizardPage() {
+        return getWizardPage(null);
+    }
+
     @SuppressWarnings("rawtypes")
-    private WizardPageContent getCurrentWizardPageInternal() {
+    private WizardPageContent getWizardPageInternal(final NodeID subnodeID) {
         final WorkflowManager manager = m_manager;
         assert manager.isLockedByCurrentThread();
-        CheckUtils.checkState(hasCurrentWizardPageInternal(), "No current wizard page - all executed");
-        NodeID currentSubnodeID = m_waitingSubnodes.get(0);
+        NodeID currentSubnodeID = subnodeID;
+        if (currentSubnodeID == null) {
+            CheckUtils.checkState(hasCurrentWizardPageInternal(), "No current wizard page - all executed");
+            currentSubnodeID = m_waitingSubnodes.get(0);
+        }
 //        int currentSubnodeIDSuffix = m_promptedSubnodeIDSuffixes.peek();
 //        final NodeID subNodeID = toNodeID(currentSubnodeIDSuffix);
         SubNodeContainer subNC = manager.getNodeContainer(currentSubnodeID, SubNodeContainer.class, true);
         WorkflowManager subWFM = subNC.getWorkflowManager();
         Map<NodeID, WizardNode> executedWizardNodeMap = subWFM.findExecutedNodes(WizardNode.class, NOT_HIDDEN_FILTER);
         LinkedHashMap<NodeIDSuffix, WizardNode> resultMap = new LinkedHashMap<>();
+        Set<HiLiteHandler> initialHiliteHandlerSet = new HashSet<HiLiteHandler>();
         for (Map.Entry<NodeID, WizardNode> entry : executedWizardNodeMap.entrySet()) {
             if (!subWFM.getNodeContainer(entry.getKey(), NativeNodeContainer.class, true).isInactive()) {
                 NodeID.NodeIDSuffix idSuffix = NodeID.NodeIDSuffix.create(manager.getID(), entry.getKey());
                 resultMap.put(idSuffix, entry.getValue());
+                for (int i = 0; i < subWFM.getNodeContainer(entry.getKey()).getNrInPorts() - 1; i++) {
+                    HiLiteHandler hiLiteHandler = ((NodeModel)entry.getValue()).getInHiLiteHandler(i);
+                    if (hiLiteHandler != null) {
+                        initialHiliteHandlerSet.add(hiLiteHandler);
+                    }
+                }
             }
         }
         NodeID.NodeIDSuffix pageID = NodeID.NodeIDSuffix.create(manager.getID(), subWFM.getID());
@@ -425,7 +461,51 @@ public final class WizardExecutionController extends ExecutionController {
                 LOGGER.error("Default page layout could not be created: " + ex.getMessage(), ex);
             }
         }
-        return new WizardPageContent(pageID, resultMap, pageLayout);
+        Set<HiLiteHandler> knownHiLiteHandlers = new HashSet<HiLiteHandler>();
+        Set<HiLiteTranslator> knownTranslators = new HashSet<HiLiteTranslator>();
+        Set<HiLiteManager> knownManagers = new HashSet<HiLiteManager>();
+        for (HiLiteHandler initialHandler : initialHiliteHandlerSet) {
+            getHiLiteTranslators(initialHandler, knownHiLiteHandlers, knownTranslators, knownManagers);
+        }
+        List<HiLiteTranslator> translatorList = knownTranslators.size() > 0 ? new ArrayList<HiLiteTranslator>(knownTranslators) : null;
+        List<HiLiteManager> managerList = knownManagers.size() > 0 ? new ArrayList<HiLiteManager>(knownManagers) : null;
+        return new WizardPageContent(pageID, resultMap, pageLayout, translatorList, managerList);
+    }
+
+    private void getHiLiteTranslators(final HiLiteHandler handler, final Set<HiLiteHandler> knownHiLiteHandlers, final Set<HiLiteTranslator> knownTranslators, final Set<HiLiteManager> knownManagers) {
+        if (handler == null || !knownHiLiteHandlers.add(handler)) {
+            return;
+        }
+        Set<HiLiteTranslator> translators = handler.getHiLiteTranslators();
+        for (HiLiteTranslator translator : translators) {
+            if (translator != null && knownTranslators.add(translator)) {
+                followHiLiteTranslator(translator, knownHiLiteHandlers, knownTranslators, knownManagers);
+            }
+        }
+        Set<HiLiteManager> managers = handler.getHiLiteManagers();
+        for (HiLiteManager manager : managers) {
+            if (manager != null && knownManagers.add(manager)) {
+                followHiLiteManager(manager, knownHiLiteHandlers, knownTranslators, knownManagers);
+            }
+        }
+    }
+
+    private void followHiLiteTranslator(final HiLiteTranslator translator, final Set<HiLiteHandler> knownHiLiteHandlers, final Set<HiLiteTranslator> knownTranslators, final Set<HiLiteManager> knownManagers) {
+        getHiLiteTranslators(translator.getFromHiLiteHandler(), knownHiLiteHandlers, knownTranslators, knownManagers);
+        if (translator.getToHiLiteHandlers() != null) {
+            for (HiLiteHandler toHiLiteHandler : translator.getToHiLiteHandlers()) {
+                getHiLiteTranslators(toHiLiteHandler, knownHiLiteHandlers, knownTranslators, knownManagers);
+            }
+        }
+    }
+
+    private void followHiLiteManager(final HiLiteManager manager, final Set<HiLiteHandler> knownHiLiteHandlers, final Set<HiLiteTranslator> knownTranslators, final Set<HiLiteManager> knownManagers) {
+        getHiLiteTranslators(manager.getFromHiLiteHandler(), knownHiLiteHandlers, knownTranslators, knownManagers);
+        if (manager.getToHiLiteHandlers() != null) {
+            for (HiLiteHandler toHiLiteHandler : manager.getToHiLiteHandlers()) {
+                getHiLiteTranslators(toHiLiteHandler, knownHiLiteHandlers, knownTranslators, knownManagers);
+            }
+        }
     }
 
     /** ...
@@ -505,13 +585,39 @@ public final class WizardExecutionController extends ExecutionController {
         manager.executeAll();
     }
 
+    /**
+     * @param viewContentMap
+     * @return
+     */
     public Map<String, ValidationError> loadValuesIntoCurrentPage(final Map<String, String> viewContentMap) {
+        return loadValuesIntoPage(viewContentMap, null, true, false);
+    }
+
+    /**
+     * @param viewContentMap
+     * @param subnodeID
+     * @return
+     * @since 3.4
+     */
+    public Map<String, ValidationError> loadValuesIntoPage(final Map<String, String> viewContentMap, final NodeID subnodeID) {
+        return loadValuesIntoPage(viewContentMap, subnodeID, true, false);
+    }
+
+    /**
+     * @param viewContentMap
+     * @param subnodeID
+     * @param validate
+     * @param useAsDefault
+     * @return
+     * @since 3.4
+     */
+    public Map<String, ValidationError> loadValuesIntoPage(final Map<String, String> viewContentMap, final NodeID subnodeID, final boolean validate, final boolean useAsDefault) {
         WorkflowManager manager = m_manager;
         try (WorkflowLock lock = manager.lock()) {
             checkDiscard();
             NodeContext.pushContext(manager);
             try {
-                return loadValuesIntoCurrentPageInternal(viewContentMap);
+                return loadValuesIntoPageInternal(viewContentMap, subnodeID, validate, useAsDefault);
             } finally {
                 NodeContext.removeLastContext();
             }
@@ -519,23 +625,89 @@ public final class WizardExecutionController extends ExecutionController {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked" })
-    private Map<String, ValidationError> loadValuesIntoCurrentPageInternal(final Map<String, String> viewContentMap) {
+    private Map<String, ValidationError> loadValuesIntoPageInternal(final Map<String, String> viewContentMap, final NodeID subnodeID, final boolean validate, final boolean useAsDefault) {
         WorkflowManager manager = m_manager;
         assert manager.isLockedByCurrentThread();
-        CheckUtils.checkState(hasCurrentWizardPageInternal(), "No current wizard page");
         LOGGER.debugWithFormat("Loading view content into wizard nodes (%d)", viewContentMap.size());
-//        int subnodeIDSuffix = m_promptedSubnodeIDSuffixes.peek();
-//        NodeID currentID = toNodeID(subnodeIDSuffix);
-        NodeID currentID = m_waitingSubnodes.get(0);
-        SubNodeContainer subNodeNC = manager.getNodeContainer(currentID, SubNodeContainer.class, true);
-        WorkflowManager subNodeWFM = subNodeNC.getWorkflowManager();
-        Map<NodeID, WizardNode> wizardNodeSet = subNodeWFM.findNodes(WizardNode.class, NOT_HIDDEN_FILTER, false);
-        Map<String, ValidationError> resultMap = new LinkedHashMap<String, ValidationError>();
+        NodeID verifiedID = getVerifiedSubnodeID(subnodeID);
+
+        SubNodeContainer subNodeNC = manager.getNodeContainer(verifiedID, SubNodeContainer.class, true);
+        Map<NodeID, WizardNode> wizardNodeSet = getWizardNodeSetForVerifiedID(verifiedID);
+
+        if (validate) {
+            Map<String, ValidationError> validationResult = validateViewValuesInternal(viewContentMap, verifiedID, wizardNodeSet);
+            if (!validationResult.isEmpty()) {
+                return validationResult;
+            }
+        }
+
+        // validation succeeded, reset subnode and apply
+        if (!subNodeNC.getInternalState().isExecuted()) { // this used to be an error but see SRV-745
+            LOGGER.warnWithFormat("Wrapped metanode (%s) not fully executed on appyling new values -- "
+                    + "consider to change wrapped metanode layout to have self-contained executable units",
+                    subNodeNC.getNameWithID());
+        }
+        //TODO: check for given subnodeID
+        manager.resetHaltedSubnode(verifiedID);
         for (Map.Entry<String, String> entry : viewContentMap.entrySet()) {
             NodeID.NodeIDSuffix suffix = NodeID.NodeIDSuffix.fromString(entry.getKey());
             NodeID id = suffix.prependParent(manager.getID());
-            CheckUtils.checkState(id.hasPrefix(currentID), "The wizard page content for ID %s (suffix %s) "
-                        + "does not belong to the current Wrapped Metanode (ID %s)", id, entry.getKey(), currentID);
+            WizardNode wizardNode = wizardNodeSet.get(id);
+            WebViewContent newViewValue = wizardNode.createEmptyViewValue();
+            if (newViewValue == null) {
+                // node has no view value
+                continue;
+            }
+            try {
+                newViewValue.loadFromStream(new ByteArrayInputStream(entry.getValue().getBytes()));
+                wizardNode.loadViewValue(newViewValue, useAsDefault);
+            } catch (Exception e) {
+                LOGGER.error("Failed to load view value into node \"" + id + "\" although validation succeeded", e);
+            }
+        }
+        manager.configureNodeAndSuccessors(verifiedID, true);
+        return Collections.emptyMap();
+    }
+
+    /**
+     * @param viewContentMap
+     * @return
+     * @since 3.4
+     */
+    public Map<String, ValidationError> validateViewValuesInCurrentPage(final Map<String, String> viewContentMap) {
+        return validateViewValuesInPage(viewContentMap, null);
+    }
+
+    /**
+     * @param viewContentMap
+     * @param subnodeID
+     * @return
+     * @since 3.4
+     */
+    public Map<String, ValidationError> validateViewValuesInPage(final Map<String, String> viewContentMap, final NodeID subnodeID) {
+        WorkflowManager manager = m_manager;
+        try (WorkflowLock lock = manager.lock()) {
+            checkDiscard();
+            NodeContext.pushContext(manager);
+            try {
+                NodeID verifiedID = getVerifiedSubnodeID(subnodeID);
+                return validateViewValuesInternal(viewContentMap, verifiedID, getWizardNodeSetForVerifiedID(verifiedID));
+            } finally {
+                NodeContext.removeLastContext();
+            }
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Map<String, ValidationError> validateViewValuesInternal(final Map<String, String> viewValues, final NodeID verifiedID, final Map<NodeID, WizardNode> wizardNodeSet) {
+        WorkflowManager manager = m_manager;
+        assert manager.isLockedByCurrentThread();
+        Map<String, ValidationError> resultMap = new LinkedHashMap<String, ValidationError>();
+        for (Map.Entry<String, String> entry : viewValues.entrySet()) {
+            NodeID.NodeIDSuffix suffix = NodeID.NodeIDSuffix.fromString(entry.getKey());
+            NodeID id = suffix.prependParent(manager.getID());
+            CheckUtils.checkState(id.hasPrefix(verifiedID), "The wizard page content for ID %s (suffix %s) "
+                        + "does not belong to the current Wrapped Metanode (ID %s)", id, entry.getKey(), verifiedID);
             WizardNode wizardNode = wizardNodeSet.get(id);
             CheckUtils.checkState(wizardNode != null, "No wizard node with ID %s in Wrapped Metanode, valid IDs are: "
                         + "%s", id, ConvenienceMethods.getShortStringFrom(wizardNodeSet.entrySet(), 10));
@@ -559,32 +731,27 @@ public final class WizardExecutionController extends ExecutionController {
         if (!resultMap.isEmpty()) {
             return resultMap;
         }
-        // validation succeeded, reset subnode and apply
-        if (!subNodeNC.getInternalState().isExecuted()) { // this used to be an error but see SRV-745
-            LOGGER.warnWithFormat("Wrapped metanode (%s) not fully executed on appyling new values -- "
-                    + "consider to change wrapped metanode layout to have self-contained executable units",
-                    subNodeNC.getNameWithID());
-        }
-        manager.resetHaltedSubnode(currentID);
-//        manager.resetAndConfigureNode(currentID);
-        for (Map.Entry<String, String> entry : viewContentMap.entrySet()) {
-            NodeID.NodeIDSuffix suffix = NodeID.NodeIDSuffix.fromString(entry.getKey());
-            NodeID id = suffix.prependParent(manager.getID());
-            WizardNode wizardNode = wizardNodeSet.get(id);
-            WebViewContent newViewValue = wizardNode.createEmptyViewValue();
-            if (newViewValue == null) {
-                // node has no view value
-                continue;
-            }
-            try {
-                newViewValue.loadFromStream(new ByteArrayInputStream(entry.getValue().getBytes()));
-                wizardNode.loadViewValue(newViewValue, false);
-            } catch (Exception e) {
-                LOGGER.error("Failed to load view value into node \"" + id + "\" although validation succeeded", e);
-            }
-        }
-        manager.configureNodeAndSuccessors(currentID, true);
         return Collections.emptyMap();
+    }
+
+    private NodeID getVerifiedSubnodeID(final NodeID subnodeID) {
+        WorkflowManager manager = m_manager;
+        assert manager.isLockedByCurrentThread();
+        NodeID verifiedID = subnodeID;
+        if (verifiedID == null) {
+            CheckUtils.checkState(hasCurrentWizardPageInternal(), "No current wizard page");
+            verifiedID = m_waitingSubnodes.get(0);
+        }
+        return verifiedID;
+    }
+
+    @SuppressWarnings("rawtypes")
+    private Map<NodeID, WizardNode> getWizardNodeSetForVerifiedID(final NodeID verifiedID) {
+        WorkflowManager manager = m_manager;
+        assert manager.isLockedByCurrentThread();
+        SubNodeContainer subNodeNC = manager.getNodeContainer(verifiedID, SubNodeContainer.class, true);
+        WorkflowManager subNodeWFM = subNodeNC.getWorkflowManager();
+        return subNodeWFM.findNodes(WizardNode.class, NOT_HIDDEN_FILTER, false);
     }
 
     public void stepNext() {
@@ -610,6 +777,23 @@ public final class WizardExecutionController extends ExecutionController {
             m_promptedSubnodeIDSuffixes.push(currentID.getIndex());
         }
         reexecuteNode(currentID);
+    }
+
+    /**
+     * @since 3.4
+     */
+    //TODO: the next two methods should be split up into separate classes
+    public void reexecuteSinglePage(final NodeID id) {
+        final WorkflowManager manager = m_manager;
+        try (WorkflowLock lock = manager.lock()) {
+            checkDiscard();
+            NodeContext.pushContext(manager);
+            try {
+                m_manager.executeUpToHere(id);
+            } finally {
+                NodeContext.removeLastContext();
+            }
+        }
     }
 
     private void reexecuteNode(final NodeID id) {
@@ -702,8 +886,11 @@ public final class WizardExecutionController extends ExecutionController {
     public static final class WizardPageContent {
 
         private final NodeIDSuffix m_pageNodeID;
+        @SuppressWarnings("rawtypes")
         private final Map<NodeIDSuffix, WizardNode> m_pageMap;
         private final String m_layoutInfo;
+        private final List<HiLiteTranslator> m_hiLiteTranslators;
+        private final List<HiLiteManager> m_hiliteManagers;
 
         /**
          * @param pageNodeID
@@ -712,10 +899,12 @@ public final class WizardExecutionController extends ExecutionController {
          */
         @SuppressWarnings("rawtypes")
         WizardPageContent(final NodeIDSuffix pageNodeID, final Map<NodeIDSuffix, WizardNode> pageMap,
-            final String layoutInfo) {
+            final String layoutInfo, final List<HiLiteTranslator> hiLiteTranslators, final List<HiLiteManager> hiLiteManagers) {
             m_pageNodeID = pageNodeID;
             m_pageMap = pageMap;
             m_layoutInfo = layoutInfo;
+            m_hiLiteTranslators = hiLiteTranslators;
+            m_hiliteManagers = hiLiteManagers;
         }
 
         /**
@@ -740,6 +929,22 @@ public final class WizardExecutionController extends ExecutionController {
          */
         public String getLayoutInfo() {
             return m_layoutInfo;
+        }
+
+        /**
+         * @return the hiLiteTranslators
+         * @since 3.4
+         */
+        public List<HiLiteTranslator> getHiLiteTranslators() {
+            return m_hiLiteTranslators;
+        }
+
+        /**
+         * @return the hiliteManagers
+         * @since 3.4
+         */
+        public List<HiLiteManager> getHiliteManagers() {
+            return m_hiliteManagers;
         }
 
     }

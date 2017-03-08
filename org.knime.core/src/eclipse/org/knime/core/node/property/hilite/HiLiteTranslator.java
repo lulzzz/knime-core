@@ -65,6 +65,9 @@ import org.knime.core.data.RowKey;
  * are called when something changes either on the source or target side, and
  * then invoke the corresponding handlers on the other side to hilite, unhilite,
  * and clear mapped keys.
+ * <p>
+ * <strong>Note:</strong> If you create an instance of a {@link HiLiteTranslator} make sure to {@linkplain #dispose()}
+ * it when done, e.g. during reset, setting new input hilite handler or during disposal of the NodeModel.
  *
  * @author Thomas Gabriel, University of Konstanz
  */
@@ -253,6 +256,7 @@ public final class HiLiteTranslator {
                     "Source HiLiteHandler must not be null.");
         }
         m_sourceHandler = handler;
+        m_sourceHandler.addHiLiteTranslator(this);
         m_targetHandlers = new LinkedHashSet<HiLiteHandler>();
         m_mapper = mapper;
     }
@@ -286,6 +290,7 @@ public final class HiLiteTranslator {
                     m_sourceHandler.getHiLitKeys()));
             m_targetHandlers.remove(targetHandler);
             targetHandler.removeHiLiteListener(m_targetListener);
+            targetHandler.removeHiLiteTranslator(this);
             if (m_targetHandlers.isEmpty()) {
                 m_sourceHandler.removeHiLiteListener(m_sourceListener);
             }
@@ -306,6 +311,7 @@ public final class HiLiteTranslator {
             }
             m_targetHandlers.add(targetHandler);
             targetHandler.addHiLiteListener(m_targetListener);
+            targetHandler.addHiLiteTranslator(this);
             m_targetListener.hiLite(new KeyEvent(targetHandler,
                     targetHandler.getHiLitKeys()));
         }
@@ -341,6 +347,19 @@ public final class HiLiteTranslator {
      */
     public HiLiteHandler getFromHiLiteHandler() {
         return m_sourceHandler;
+    }
+
+    /**
+     * Unregisters this {@link HiLiteTranslator} from all involved {@link HiLiteHandler}s, removes all target {@link HiLiteHandler}s and unsets the mapper.
+     * This needs to be called before deletion, if this instance was created with providing a custom {@link HiLiteHandler} as the source.
+     * @since 3.4
+     */
+    public void dispose() {
+        if (m_sourceHandler != null) {
+            m_sourceHandler.removeHiLiteTranslator(this);
+        }
+        removeAllToHiliteHandlers();
+        setMapper(null);
     }
 
 }

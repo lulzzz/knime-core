@@ -55,7 +55,7 @@ import org.knime.core.data.time.localtime.LocalTimeCellFactory;
 import org.knime.core.data.time.zoneddatetime.ZonedDateTimeCellFactory;
 
 /**
- * An enumeration that contains all different Date&Time Types.
+ * An enumeration that contains all different Date&Time types.
  *
  * @author Simon Schmid, KNIME.com, Konstanz, Germany
  */

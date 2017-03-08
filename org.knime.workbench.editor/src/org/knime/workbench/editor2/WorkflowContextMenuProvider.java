@@ -96,6 +96,7 @@ import org.knime.workbench.editor2.actions.OpenInteractiveViewAction;
 import org.knime.workbench.editor2.actions.OpenInteractiveWebViewAction;
 import org.knime.workbench.editor2.actions.OpenPortViewAction;
 import org.knime.workbench.editor2.actions.OpenSubNodeEditorAction;
+import org.knime.workbench.editor2.actions.OpenSubnodeWebViewAction;
 import org.knime.workbench.editor2.actions.OpenSubworkflowEditorAction;
 import org.knime.workbench.editor2.actions.OpenViewAction;
 import org.knime.workbench.editor2.actions.OpenWorkflowPortViewAction;
@@ -345,6 +346,7 @@ public class WorkflowContextMenuProvider extends ContextMenuProvider {
                     // in the 'else' block? Yes:
                     // it's only one or the other -- do not support nodes that have
                     // both (standard swing) interactive and web interactive views
+                    //TODO for subnodes move to submenu?
                     InteractiveWebViewsResult interactiveWebViewsResult = container.getInteractiveWebViews();
                     for (int i = 0; i < interactiveWebViewsResult.size(); i++) {
                         action = new OpenInteractiveWebViewAction(container, interactiveWebViewsResult.get(i));
@@ -401,6 +403,9 @@ public class WorkflowContextMenuProvider extends ContextMenuProvider {
                     action = m_actionRegistry.getAction(ConvertSubNodeToMetaNodeAction.ID);
                     subnodeMenuMgr.appendToGroup(GROUP_SUBNODE, action);
                     ((AbstractNodeAction)action).update();
+
+                    action = new OpenSubnodeWebViewAction((SubNodeContainer)container);
+                    manager.appendToGroup(IWorkbenchActionConstants.GROUP_APP, action);
                 }
 
                 // add port views

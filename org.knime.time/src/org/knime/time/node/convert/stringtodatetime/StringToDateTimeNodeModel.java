@@ -100,6 +100,7 @@ import org.knime.core.node.streamable.RowInput;
 import org.knime.core.node.streamable.RowOutput;
 import org.knime.core.node.streamable.StreamableOperator;
 import org.knime.core.node.util.StringHistory;
+import org.knime.core.node.util.filter.InputFilter;
 import org.knime.core.util.UniqueNameGenerator;
 import org.knime.time.node.convert.DateTimeTypes;
 
@@ -108,7 +109,7 @@ import org.knime.time.node.convert.DateTimeTypes;
  *
  * @author Simon Schmid, KNIME.com, Konstanz, Germany
  */
-public class StringToDateTimeNodeModel extends NodeModel {
+final class StringToDateTimeNodeModel extends NodeModel {
 
     static final String FORMAT_HISTORY_KEY = "string_to_date_formats";
 
@@ -131,6 +132,8 @@ public class StringToDateTimeNodeModel extends NodeModel {
     private String m_selectedType;
 
     private int m_failCounter;
+
+    private boolean m_hasValidatedConfiguration = false;
 
     /** @return the column select model, used in both dialog and model. */
     @SuppressWarnings("unchecked")
@@ -197,6 +200,21 @@ public class StringToDateTimeNodeModel extends NodeModel {
     }
 
     /**
+     * Sets the column selections to not include any columns.
+     *
+     * @param tableSpec the corresponding spec
+     */
+    private void setDefaultColumnSelection(final DataTableSpec tableSpec) {
+        final InputFilter<DataColumnSpec> filter = new InputFilter<DataColumnSpec>() {
+            @Override
+            public boolean include(final DataColumnSpec spec) {
+                return spec.getType().getPreferredValueClass() == StringValue.class;
+            }
+        };
+        m_colSelect.loadDefaults(tableSpec, filter, true);
+    }
+
+    /**
      * one in, one out
      */
     protected StringToDateTimeNodeModel() {
@@ -208,6 +226,10 @@ public class StringToDateTimeNodeModel extends NodeModel {
      */
     @Override
     protected DataTableSpec[] configure(final DataTableSpec[] inSpecs) throws InvalidSettingsException {
+        if (!m_hasValidatedConfiguration) {
+            setDefaultColumnSelection(inSpecs[0]);
+            throw new InvalidSettingsException("Node must be configured!");
+        }
         if (m_selectedType == null) {
             m_selectedType = DateTimeTypes.LOCAL_DATE_TIME.name();
         }
@@ -402,6 +424,7 @@ public class StringToDateTimeNodeModel extends NodeModel {
         if (!createPredefinedFormats().contains(dateformat)) {
             StringHistory.getInstance(FORMAT_HISTORY_KEY).add(dateformat);
         }
+        m_hasValidatedConfiguration = true;
     }
 
     /**
