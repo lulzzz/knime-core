@@ -47,6 +47,8 @@
  */
 package org.knime.base.node.io.csvreader;
 
+import java.time.Duration;
+
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
@@ -74,6 +76,7 @@ public final class CSVReaderConfig {
     private long m_limitRowsCount;
     private int m_skipFirstLinesCount;
     private String m_charSet;
+    private Duration m_connectTimeout;
 
 
     /**
@@ -108,6 +111,11 @@ public final class CSVReaderConfig {
         m_limitRowsCount = settings.getLong("limitRowsCount", m_limitRowsCount);
         m_skipFirstLinesCount = settings.getInt("skipFirstLinesCount", m_skipFirstLinesCount);
         m_charSet = settings.getString("characterSetName", null); // if key doesn't exist use default encoding
+        try {
+            m_connectTimeout = Duration.ofSeconds(settings.getInt("connectTimeoutInSeconds"));
+        } catch (InvalidSettingsException ex) {
+            m_connectTimeout = null; // use default value
+        }
     }
 
     /** Load in model, fail if settings are invalid.
@@ -130,6 +138,12 @@ public final class CSVReaderConfig {
         m_skipFirstLinesCount = settings.getInt("skipFirstLinesCount", m_skipFirstLinesCount);
         // added in 3.1
         m_charSet = settings.getString("characterSetName", null);
+        // added in 3.4
+        try {
+            m_connectTimeout = Duration.ofSeconds(settings.getInt("connectTimeoutInSeconds"));
+        } catch (InvalidSettingsException ex) {
+            m_connectTimeout = null; // use default value
+        }
     }
 
     /** Save configuration to argument.
@@ -149,6 +163,9 @@ public final class CSVReaderConfig {
         settings.addLong("limitRowsCount", m_limitRowsCount);
         settings.addInt("skipFirstLinesCount", m_skipFirstLinesCount);
         settings.addString("characterSetName", m_charSet);
+        if (m_connectTimeout != null) {
+            settings.addInt("connectTimeoutInSeconds", (int) (m_connectTimeout.toMillis() / 1000));
+        }
     }
 
     /** @return the location */
@@ -261,5 +278,15 @@ public final class CSVReaderConfig {
     /** @param charSet name of the new encoding, or null if the default should be used. */
     void setCharSetName(final String charSet) {
         m_charSet = charSet;
+    }
+
+    /** @return the timeout for remote files or null if the default value should be used */
+    public Duration getConnectTimeout(){
+        return m_connectTimeout;
+    }
+
+    /** @param value the connect timeout to set or <code>null</code> to use default value. */
+    void setConnectTimeout(final Duration value){
+        m_connectTimeout = value;
     }
 }

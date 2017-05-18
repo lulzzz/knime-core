@@ -193,6 +193,16 @@ public final class KNIMEConstants {
     public static final String PROPERTY_SHOW_METANODE_LOCK_ACTION =
         "knime.showaction.metanodelock";
 
+    /**
+     * Java property to disable external entity resolution in DTDs. This property is sometimes set in server
+     * installations with increased security requirements. Setting this property to <code>true</code> will disable
+     * reading external entities in XML files.
+     *
+     * @since 3.4
+     */
+    // see AP-6752
+    public static final String PROPERTY_XML_DISABLE_EXT_ENTITIES = "knime.xml.disable_external_entities";
+
     /** For KNIME's R extension: Run the R process in debug mode and print debug messages to the logging facilities.
      * Value is true or false (default).
      * @since 3.2*/
@@ -313,7 +323,7 @@ public final class KNIMEConstants {
 
 
     static {
-        BUILD_DATE = "December 20, 2016";
+        BUILD_DATE = "Nightly build";
         String versionString;
         Bundle coreBundle = OSGIHelper.getBundle("org.knime.product");
         if (coreBundle != null) {
@@ -603,6 +613,16 @@ public final class KNIMEConstants {
         byte[] uid = new byte[8];
         rand.nextBytes(uid);
         return new String(Hex.encodeHex(uid));
+    }
+
+    /**
+     * Returns whether this is a nightly build or not.
+     *
+     * @return <code>true</code> if this is a nightly build, <code>false</code> otherwise
+     * @since 3.4
+     */
+    public static boolean isNightlyBuild() {
+        return BUILD_DATE.contains("Nightly");
     }
 
     /**

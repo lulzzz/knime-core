@@ -26,20 +26,59 @@
       <node
             category-path="/preview/datetime"
             deprecated="false"
-            factory-class="org.knime.time.node.manipulate.addtime.AddTimeNodeFactory">
+            factory-class="org.knime.time.node.manipulate.modifytime.ModifyTimeNodeFactory">
       </node>
       <node
             category-path="/preview/datetime"
             deprecated="false"
-            factory-class="org.knime.time.node.manipulate.adddate.AddDateNodeFactory">
+            factory-class="org.knime.time.node.manipulate.modifydate.ModifyDateNodeFactory">
       </node>
       <node
             category-path="/preview/datetime"
             deprecated="false"
             factory-class="org.knime.time.node.manipulate.modifytimezone.ModifyTimeZoneNodeFactory">
       </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.manipulate.datetimeshift.DateTimeShiftNodeFactory">
+      </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.convert.durationperiodtostring.DurationPeriodToStringNodeFactory">
+      </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.convert.stringtodurationperiod.StringToDurationPeriodNodeFactory">
+      </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.filter.datetimebasedrowfilter.DateTimeBasedRowFilterNodeFactory">
+      </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.extract.durationperiod.ExtractDurationPeriodFieldsNodeFactory">
+      </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.calculate.datetimedifference.DateTimeDifferenceNodeFactory">
+      </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.extract.datetime.ExtractDateTimeFieldsNodeFactory">
+      </node>
+      <node
+            category-path="/preview/datetime"
+            deprecated="false"
+            factory-class="org.knime.time.node.create.createdatetime.CreateDateTimeNodeFactory">
+      </node>
    </extension>
-
    <extension
          point="org.knime.workbench.repository.categories">
          <category
@@ -97,15 +136,31 @@
       <dataValue
             valueClass="org.knime.core.data.time.duration.DurationValue">
          <renderer
-               rendererFactoryClass="org.knime.core.data.time.duration.DurationValueRenderer$DefaultRendererFactory"
+               rendererFactoryClass="org.knime.core.data.time.duration.DurationISOValueRenderer$DefaultRendererFactory"
+               suggestAsDefault="false">
+         </renderer>
+         <renderer
+               rendererFactoryClass="org.knime.core.data.time.duration.DurationLongValueRenderer$DurationLongRendererFactory"
+               suggestAsDefault="false">
+         </renderer>
+         <renderer
+               rendererFactoryClass="org.knime.core.data.time.duration.DurationShortValueRenderer$DurationShortRendererFactory"
                suggestAsDefault="true">
          </renderer>
       </dataValue>
       <dataValue
             valueClass="org.knime.core.data.time.period.PeriodValue">
          <renderer
-               rendererFactoryClass="org.knime.core.data.time.period.PeriodValueRenderer$DefaultRendererFactory"
+               rendererFactoryClass="org.knime.core.data.time.period.PeriodISOValueRenderer$DefaultRendererFactory"
+               suggestAsDefault="false">
+         </renderer>
+         <renderer
+               rendererFactoryClass="org.knime.core.data.time.period.PeriodShortValueRenderer$PeriodShortRendererFactory"
                suggestAsDefault="true">
+         </renderer>
+         <renderer
+               rendererFactoryClass="org.knime.core.data.time.period.PeriodLongValueRenderer$PeriodLongRendererFactory"
+               suggestAsDefault="false">
          </renderer>
       </dataValue>
    </extension>
@@ -159,6 +214,45 @@
                serializerClass="org.knime.core.data.time.period.PeriodCellSerializer">
          </serializer>
       </DataType>
+   </extension>
+   <extension
+         point="org.knime.base.AggregationOperator">
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalDateMedianOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalTimeMedianOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalDateTimeMedianOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.PeriodOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalTimeDurationOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalDateTimeDurationOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalTimeMeanOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalDateTimeMeanOperator"
+            deprecated="false">
+      </AggregationOperator>
+      <AggregationOperator
+            AggregationOperator="org.knime.base.data.aggregation.datetime.LocalDateMeanOperator"
+            deprecated="false">
+      </AggregationOperator>
    </extension>
    
 </plugin>

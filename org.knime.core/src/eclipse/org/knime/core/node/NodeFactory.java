@@ -628,12 +628,26 @@ public abstract class NodeFactory<T extends NodeModel> {
     }
 
     /**
-     * Returns whether this node (factory) is deprecated.
+     * Returns whether this node (factory) is deprecated. Ordinary nodes will declare their deprecation through an
+     * attribute in the extension point registration. Dynamic nodes (so those registered via the extension point
+     * defining {@link org.knime.core.node.NodeSetFactory}) can overwrite a protected scope
+     * method on {@link DynamicNodeFactory}.
      *
      * @return <code>true</code> if the node is deprecated, <code>false</code> otherwise
      * @since 3.0
      */
-    public boolean isDeprecated() {
+    public final boolean isDeprecated() {
+        return isDeprecatedInternal();
+    }
+
+    /**
+     * Concrete implementations of {@link DynamicNodeFactory} can overwrite this method,
+     * if they know about the deprecation status of the node they represent.<br>
+     * Default implementation returns deprecated status of node description.
+     * @return <code>true</code> if the node is deprecated, <code>false</code> otherwise
+     * @since 3.4
+     */
+    boolean isDeprecatedInternal() {
         return m_nodeDescription.isDeprecated();
     }
 }

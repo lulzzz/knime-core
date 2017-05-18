@@ -88,6 +88,7 @@ public class SubnodeLayoutWizard extends Wizard {
     /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("rawtypes")
     @Override
     public void addPages() {
         setWindowTitle("Layout Wrapped Metanode Wizard");
@@ -111,7 +112,7 @@ public class SubnodeLayoutWizard extends Wizard {
         }*/
         Collections.sort(nodeIDs);
         m_page = new SubnodeLayoutJSONEditorPage("Change the layout configuration");
-        m_page.setNodes(CastUtil.cast(m_subNodeContainer, SubNodeContainer.class), resultMap);
+        m_page.setNodes(CastUtil.castWFM(wfManager), CastUtil.cast(m_subNodeContainer, SubNodeContainer.class), resultMap);
         addPage(m_page);
     }
 
@@ -139,4 +140,5 @@ public class SubnodeLayoutWizard extends Wizard {
             return false;
         }
     }
+
 }

@@ -2,11 +2,10 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: KNIME Core API
 Bundle-SymbolicName: org.knime.core;singleton:=true
-Bundle-Version: 3.3.1.qualifier
+Bundle-Version: 3.4.0.qualifier
 Bundle-ClassPath: knime-core.jar,
  lib/saxon-he-9.2.0.5.jar,
- lib/schemas.jar,
- lib/jcalendar-1.4.jar
+ lib/schemas.jar
 Bundle-Activator: org.knime.core.internal.CorePlugin
 Bundle-Vendor: KNIME GmbH, Konstanz, Germany
 Export-Package: log4j,
@@ -85,6 +84,7 @@ Export-Package: log4j,
  org.knime.core.node.util.dialog.field,
  org.knime.core.node.util.filter,
  org.knime.core.node.util.filter.column,
+ org.knime.core.node.util.filter.nominal,
  org.knime.core.node.util.filter.variable,
  org.knime.core.node.web,
  org.knime.core.node.wizard,
@@ -105,6 +105,7 @@ Export-Package: log4j,
  org.knime.node.v210,
  org.knime.node.v212,
  org.knime.node.v28,
+ org.knime.node.v31,
  org.knime.node2012,
  org.knime.node2012.impl
 Require-Bundle: org.eclipse.osgi;bundle-version="[3.10.0,4.0.0)";visibility:=reexport,
@@ -128,7 +129,9 @@ Require-Bundle: org.eclipse.osgi;bundle-version="[3.10.0,4.0.0)";visibility:=ree
  org.glassfish.javax.json;bundle-version="[1.0.4,2.0.0)";visibility:=reexport,
  org.eclipse.equinox.p2.core;bundle-version="[2.4.0,3.0.0)";resolution:=optional,
  org.eclipse.equinox.p2.metadata;bundle-version="[2.3.0,4.0.0)";resolution:=optional,
- org.eclipse.equinox.p2.engine;bundle-version="[2.4.0,3.0.0)";resolution:=optional
+ org.eclipse.equinox.p2.engine;bundle-version="[2.4.0,3.0.0)";resolution:=optional,
+ org.eclipse.ui.workbench;bundle-version="[3.108.1,4.0.0)",
+ com.toedter.jcalendar;bundle-version="[1.4.0,1.5.0)"
 Eclipse-RegisterBuddy: org.apache.log4j
 Eclipse-BuddyPolicy: dependent
 Bundle-ActivationPolicy: lazy

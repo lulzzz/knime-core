@@ -57,6 +57,7 @@ import org.knime.core.data.DataCellFactory.FromSimpleString;
 import org.knime.core.data.DataType;
 import org.knime.core.data.convert.DataCellFactoryMethod;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.time.util.DurationPeriodFormatUtils;
 
 /**
  * Factory for creating {@link PeriodCell}.
@@ -90,7 +91,8 @@ public final class PeriodCellFactory implements FromSimpleString, FromComplexStr
      * @throws DateTimeParseException as per {@link Period#parse(CharSequence)}
      */
     public static DataCell create(final String s) {
-        return create(Period.parse(CheckUtils.checkArgumentNotNull(s, "Argument must not be null")));
+        return create(
+            DurationPeriodFormatUtils.parsePeriod(CheckUtils.checkArgumentNotNull(s, "Argument must not be null")));
     }
 
     /**
@@ -99,6 +101,7 @@ public final class PeriodCellFactory implements FromSimpleString, FromComplexStr
      * @return the cell containing the parsed Period.
      * @throws IllegalArgumentException when the argument is null.
      */
+    @DataCellFactoryMethod(name = "Period")
     public static DataCell create(final Period period) {
         return new PeriodCell(CheckUtils.checkArgumentNotNull(period, "Argument must not be null"));
     }

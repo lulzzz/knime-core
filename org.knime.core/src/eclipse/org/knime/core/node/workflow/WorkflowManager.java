@@ -97,6 +97,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -4844,25 +4845,23 @@ public final class WorkflowManager extends NodeContainer implements IWorkflowMan
         resetAndConfigureNodeAndSuccessors(id, true);
     }
 
-    /** Called by the wizard execution prior setting new values into an executed subnode. It will reset the node but not
-     * propagate any new configuration. Usually the workflow (metanode) will be fully executed when this method is
-     * called but it's not asserted (see also SRV-745).
+    /** Called by the wizard execution prior setting new values into an (possibly executed) subnode. It will
+     * reset the node but not propagate any new configuration. Usually the workflow (metanode) will be
+     * fully executed when this method is called but it's not asserted (see also SRV-745).
      * @param id The subnode id
+     * @param stateCheck A callback that allows individual implementations to check states of downstream nodes
      * @throws IllegalArgumentException If subnode does not exist
      * @throws IllegalStateException If downstream nodes are actively executing or already executed.
      */
-    void resetHaltedSubnode(final NodeID id) {
-        try (WorkflowLock lock = lock()) {
-            SubNodeContainer snc = getNodeContainer(id, SubNodeContainer.class, true);
-            for (ConnectionContainer cc : m_workflow.getConnectionsBySource(id)) {
-                NodeID dest = cc.getDest();
-                NodeContainer destNC = dest.equals(getID()) ? this : getNodeContainer(dest);
-                final InternalNodeContainerState destNCState = destNC.getInternalState();
-                CheckUtils.checkState(destNCState.isHalted() && !destNCState.isExecuted(), "Downstream nodes of "
-                    + "Wrapped Metanode %s must not be in execution/executed (node %s)", snc.getNameWithID(), destNC);
-            }
-            invokeResetOnSingleNodeContainer(snc);
+    void resetSubnodeForViewUpdate(final NodeID id, final BiConsumer<SubNodeContainer, NodeContainer> stateCheck) {
+        assert isLockedByCurrentThread();
+        SubNodeContainer snc = getNodeContainer(id, SubNodeContainer.class, true);
+        for (ConnectionContainer cc : m_workflow.getConnectionsBySource(id)) {
+            NodeID dest = cc.getDest();
+            NodeContainer destNC = dest.equals(getID()) ? this : getNodeContainer(dest);
+            stateCheck.accept(snc, destNC); // for wizard execution: downstream nodes must not be executed
         }
+        invokeResetOnSingleNodeContainer(snc);
     }
 
     /** Reset node and all executed successors of a specific node and

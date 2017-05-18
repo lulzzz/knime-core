@@ -64,6 +64,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -193,7 +194,13 @@ public abstract class NameFilterPanel<T> extends JPanel {
 
     private JPanel m_nameFilterPanel;
 
-    private PatternFilterPanelImpl<T> m_patternPanel;
+    /**
+     * additional checkbox for the middle button panel
+     * @since 3.4
+     */
+    private JCheckBox m_additionalCheckbox;
+
+    private PatternFilterPanel<T> m_patternPanel;
 
     private JRadioButton m_nameButton;
 
@@ -237,18 +244,36 @@ public abstract class NameFilterPanel<T> extends JPanel {
      * @param filter A filter that specifies which items are shown in the panel (and thus are possible to include or
      *            exclude) and which are not shown.
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     protected NameFilterPanel(final boolean showSelectionListsOnly, final InputFilter<T> filter) {
+        this(showSelectionListsOnly, filter, null);
+    }
+
+    /**
+     * Creates a new filter column panel with three component which are the include list, button panel to shift elements
+     * between the two lists, and the exclude list. The include list then will contain all values to filter.
+     * Additionally a {@link InputFilter} can be specified, based on which the shown items are shown or not. The filter
+     * can be <code>null</code>, in which case it is simply not used at all.
+     *
+     * @param showSelectionListsOnly if set, the component shows only the basic include/exclude selection panel - no
+     *            additional search boxes, force-include-options, etc.
+     * @param filter A filter that specifies which items are shown in the panel (and thus are possible to include or
+     *            exclude) and which are not shown.
+     * @param searchLabel text to show next to the search fields
+     * @since 3.4
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    protected NameFilterPanel(final boolean showSelectionListsOnly, final InputFilter<T> filter,
+        final String searchLabel) {
         super(new GridLayout(1, 1));
         m_filter = filter;
-        m_patternPanel = new PatternFilterPanelImpl<T>(this, filter);
+        m_patternPanel = getPatternFilterPanel(filter);
         m_patternPanel.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(final ChangeEvent e) {
                 fireFilteringChangedEvent();
             }
         });
-        m_patternButton = createButtonToFilterPanel(PatternFilterConfigurationImpl.TYPE, "Wildcard/Regex Selection");
+        m_patternButton = createButtonToFilterPanel(PatternFilterConfiguration.TYPE, "Wildcard/Regex Selection");
 
         // keeps buttons such add 'add', 'add all', 'remove', and 'remove all'
         final JPanel buttonPan = new JPanel();
@@ -298,6 +323,13 @@ public abstract class NameFilterPanel<T> extends JPanel {
                 onRemAll();
             }
         });
+        m_additionalCheckbox = createAdditionalButton();
+        if (m_additionalCheckbox != null){
+            buttonPan.add(Box.createVerticalStrut(25));
+            m_additionalCheckbox.setMaximumSize(new Dimension(125, 25));
+            buttonPan.add(m_additionalCheckbox);
+            m_additionalCheckbox.addActionListener(e -> fireFilteringChangedEvent());
+        }
         buttonPan.add(Box.createVerticalStrut(20));
         buttonPan.add(Box.createGlue());
 
@@ -329,7 +361,7 @@ public abstract class NameFilterPanel<T> extends JPanel {
         m_searchFieldIncl.addActionListener(actionListenerIncl);
         m_searchButtonIncl.addActionListener(actionListenerIncl);
         JPanel inclSearchPanel = new JPanel(new BorderLayout());
-        inclSearchPanel.add(new JLabel("Column(s): "), BorderLayout.WEST);
+        inclSearchPanel.add(new JLabel((searchLabel != null ? searchLabel : "Column(s)")+": "), BorderLayout.WEST);
         inclSearchPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
         inclSearchPanel.add(m_searchFieldIncl, BorderLayout.CENTER);
         inclSearchPanel.add(m_searchButtonIncl, BorderLayout.EAST);
@@ -384,7 +416,7 @@ public abstract class NameFilterPanel<T> extends JPanel {
         m_searchButtonExcl.addActionListener(actionListenerExcl);
         JPanel exclSearchPanel = new JPanel(new BorderLayout());
         exclSearchPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-        exclSearchPanel.add(new JLabel("Column(s): "), BorderLayout.WEST);
+        exclSearchPanel.add(new JLabel((searchLabel != null ? searchLabel : "Column(s)")+": "), BorderLayout.WEST);
         exclSearchPanel.add(m_searchFieldExcl, BorderLayout.CENTER);
         exclSearchPanel.add(m_searchButtonExcl, BorderLayout.EAST);
         m_markAllHitsExcl = new JCheckBox("Select all search hits");
@@ -445,6 +477,34 @@ public abstract class NameFilterPanel<T> extends JPanel {
         initPanel();
     }
 
+    /**
+     * @param filter
+     * @return the PatternFilterPanel to be used.
+     * @since 3.4
+     * @noreference This method is not intended to be referenced by clients outside the KNIME core.
+     */
+    protected PatternFilterPanel<T> getPatternFilterPanel(final InputFilter<T> filter) {
+        return new PatternFilterPanel<T>(this, filter);
+    }
+
+    /**
+     * @return an additional button to be added to the center panel. To be overwritten by subclasses
+     * @since 3.4
+     * @nooverride This method is not intended to be re-implemented or extended by clients outside KNIME core.
+     */
+    protected JCheckBox createAdditionalButton(){
+        return null;
+    }
+
+    /** The additional button as created by {@link #createAdditionalButton()} or an empty optional if the method
+     * was not overridden.
+     * @return the additionalCheckbox
+     * @since 3.4
+     */
+    protected final Optional<JCheckBox> getAdditionalButton() {
+        return Optional.ofNullable(m_additionalCheckbox);
+    }
+
     /** @return a list cell renderer from items to be rendered in the filer */
     @SuppressWarnings("rawtypes")
     protected abstract ListCellRenderer getListCellRenderer();
@@ -485,6 +545,9 @@ public abstract class NameFilterPanel<T> extends JPanel {
         m_addButton.setEnabled(enabled);
         m_enforceInclusion.setEnabled(enabled);
         m_enforceExclusion.setEnabled(enabled);
+        if (m_additionalCheckbox != null) {
+            m_additionalCheckbox.setEnabled(enabled);
+        }
         Enumeration<AbstractButton> buttons = m_typeGroup.getElements();
         while (buttons.hasMoreElements()) {
             buttons.nextElement().setEnabled(enabled);
@@ -1192,7 +1255,7 @@ public abstract class NameFilterPanel<T> extends JPanel {
         m_filterPanel.removeAll();
         if (NameFilterConfiguration.TYPE.equals(m_currentType)) {
             m_filterPanel.add(m_nameFilterPanel);
-        } else if (PatternFilterConfigurationImpl.TYPE.equals(m_currentType)) {
+        } else if (PatternFilterConfiguration.TYPE.equals(m_currentType)) {
             m_filterPanel.add(m_patternPanel);
         } else {
             m_filterPanel.add(getFilterPanel(m_currentType));
@@ -1217,6 +1280,36 @@ public abstract class NameFilterPanel<T> extends JPanel {
                 removeType(m_patternButton);
             }
         }
+    }
+
+    /**
+     * @param exclude title for the left box
+     * @param include title for the right box
+     * @since 3.4
+     */
+    public void setPatternFilterBorderTitles(final String exclude, final String include) {
+        m_patternPanel.setBorderTitles(exclude, include);
+    }
+
+    /**
+     * sets the text of the "Include Missing Value"-checkbox
+     * @param newText
+     * @since 3.4
+     */
+    public void setAdditionalCheckboxText(final String newText){
+        if (m_additionalCheckbox != null) {
+            m_additionalCheckbox.setText(newText);
+            m_additionalCheckbox.setToolTipText(newText);
+        }
+    }
+
+    /**
+     * sets the text of the "Include Missing Value"-checkbox
+     * @param newText
+     * @since 3.4
+     */
+    public void setAdditionalPatternCheckboxText(final String newText){
+        m_patternPanel.setAdditionalCheckboxText(newText);
     }
 
 }

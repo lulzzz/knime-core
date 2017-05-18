@@ -51,6 +51,7 @@ package org.knime.core.node.wizard;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.eclipse.core.runtime.IConfigurationElement;
 import org.eclipse.core.runtime.IExtension;
@@ -58,6 +59,7 @@ import org.eclipse.core.runtime.IExtensionPoint;
 import org.eclipse.core.runtime.IExtensionRegistry;
 import org.eclipse.core.runtime.Platform;
 import org.knime.core.node.AbstractNodeView;
+import org.knime.core.node.AbstractNodeView.ViewableModel;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeModel;
 import org.knime.core.node.interactive.InteractiveView;
@@ -75,16 +77,19 @@ import org.knime.core.node.workflow.WorkflowManager;
  * @param <VAL> the {@link WebViewContent} implementation used as view value
  * @since 2.11
  */
-public abstract class AbstractWizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
-    REP extends WebViewContent, VAL extends WebViewContent> extends AbstractNodeView<T>
-    implements InteractiveView<T, REP, VAL> {
+public abstract class AbstractWizardNodeView<T extends ViewableModel & WizardNode<REP, VAL>, REP extends WebViewContent, VAL extends WebViewContent>
+    extends AbstractNodeView<T> implements InteractiveView<T, REP, VAL> {
 
+    private static final NodeLogger LOGGER = NodeLogger.getLogger(AbstractWizardNodeView.class);
     private static final String EXT_POINT_ID = "org.knime.core.WizardNodeView";
 
     private final InteractiveViewDelegate<VAL> m_delegate;
 
+    private AtomicReference<VAL> m_lastRetrievedValue = new AtomicReference<VAL>();
+
     /**
      * @param nodeModel
+     * @since 3.4
      */
     protected AbstractWizardNodeView(final T nodeModel) {
         super(nodeModel);
@@ -110,10 +115,36 @@ public abstract class AbstractWizardNodeView<T extends NodeModel & WizardNode<RE
     }
 
     /**
+     * @since 3.4
+     */
+    public void callViewableModelChanged() {
+        try {
+            // call model changed on concrete implementation
+            modelChanged();
+        } catch (NullPointerException npe) {
+            LOGGER.coding("AbstractWizardNodeView.modelChanged() causes "
+                   + "NullPointerException during notification of a "
+                   + "changed model, reason: " + npe.getMessage(), npe);
+        } catch (Throwable t) {
+            LOGGER.error("AbstractWizardNodeView.modelChanged() causes an error "
+                   + "during notification of a changed model, reason: "
+                   + t.getMessage(), t);
+        }
+    }
+
+    /**
+     * @return
+     * @since 3.4
+     */
+    protected final WizardNode<REP, VAL> getModel() {
+        return super.getViewableModel();
+    }
+
+    /**
      * @return The current html file object.
      */
     protected File getViewSource() {
-        String viewPath = getNodeModel().getViewHTMLPath();
+        String viewPath = getModel().getViewHTMLPath();
         if (viewPath != null && !viewPath.isEmpty()) {
             return new File(viewPath);
         }
@@ -132,13 +163,29 @@ public abstract class AbstractWizardNodeView<T extends NodeModel & WizardNode<RE
      * @return The node views creator instance.
      */
     protected WizardViewCreator<REP, VAL> getViewCreator() {
-        return getNodeModel().getViewCreator();
+        return getModel().getViewCreator();
     }
 
     /**
      * Called on view close.
      */
     protected abstract void closeView();
+
+    /**
+     * @return the lastRetrievedValue
+     * @since 3.4
+     */
+    public VAL getLastRetrievedValue() {
+        return m_lastRetrievedValue.get();
+    }
+
+    /**
+     * @param lastRetrievedValue the lastRetrievedValue to set
+     * @since 3.4
+     */
+    protected void setLastRetrievedValue(final VAL lastRetrievedValue) {
+        m_lastRetrievedValue.set(lastRetrievedValue);
+    }
 
     /**
      * Queries extension point for additional {@link AbstractWizardNodeView} implementations.
@@ -198,7 +245,7 @@ public abstract class AbstractWizardNodeView<T extends NodeModel & WizardNode<RE
         /**
          * @return the viewClass
          */
-        public Class<AbstractWizardNodeView<? extends NodeModel, ? extends WebViewContent, ? extends WebViewContent>>
+        public Class<AbstractWizardNodeView<? extends ViewableModel, ? extends WebViewContent, ? extends WebViewContent>>
             getViewClass() {
             return m_viewClass;
         }

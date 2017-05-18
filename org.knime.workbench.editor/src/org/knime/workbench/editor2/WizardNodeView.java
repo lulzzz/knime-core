@@ -58,7 +58,6 @@ import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.ProgressEvent;
 import org.eclipse.swt.browser.ProgressListener;
 import org.eclipse.swt.events.DisposeEvent;
-import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
@@ -73,14 +72,17 @@ import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.ToolBar;
 import org.eclipse.swt.widgets.ToolItem;
+import org.knime.core.node.AbstractNodeView.ViewableModel;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeModel;
 import org.knime.core.node.interactive.DefaultReexecutionCallback;
+import org.knime.core.node.web.ValidationError;
 import org.knime.core.node.web.WebTemplate;
 import org.knime.core.node.web.WebViewContent;
 import org.knime.core.node.wizard.AbstractWizardNodeView;
 import org.knime.core.node.wizard.WizardNode;
 import org.knime.core.node.wizard.WizardViewCreator;
+import org.knime.core.wizard.SubnodeViewableModel;
 import org.knime.workbench.core.util.ImageRepository;
 import org.knime.workbench.core.util.ImageRepository.SharedImages;
 import org.knime.workbench.editor2.ElementRadioSelectionDialog.RadioItem;
@@ -96,7 +98,7 @@ import org.knime.workbench.editor2.ElementRadioSelectionDialog.RadioItem;
  * @param <VAL>
  * @since 2.9
  */
-public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
+public final class WizardNodeView<T extends ViewableModel & WizardNode<REP, VAL>,
         REP extends WebViewContent, VAL extends WebViewContent>
         extends AbstractWizardNodeView<T, REP, VAL> {
 
@@ -106,6 +108,7 @@ public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
 
     private Browser m_browser;
     private boolean m_viewSet = false;
+    private boolean m_initialized = false;
     private String m_title;
 
     /**
@@ -288,14 +291,14 @@ public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
         });
 
         //TODO: make initial size dynamic
-        m_shell.setSize(800, 600);
+        m_shell.setSize(1024, 768);
 
         Point middle = new Point(knimeWindowBounds.width / 2, knimeWindowBounds.height / 2);
         // Left upper point for window
         Point newLocation = new Point(middle.x - (m_shell.getSize().x / 2) + knimeWindowBounds.x,
                                       middle.y - (m_shell.getSize().y / 2) + knimeWindowBounds.y);
         m_shell.setLocation(newLocation.x, newLocation.y);
-        m_shell.addDisposeListener(new DisposeListener() {
+        m_shell.addDisposeListener(new org.eclipse.swt.events.DisposeListener() {
             @Override
             public void widgetDisposed(final DisposeEvent e) {
                 callCloseView();
@@ -311,12 +314,14 @@ public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
 
                     @Override
                     public void completed(final ProgressEvent event) {
-                        if (m_viewSet) {
-                            T model = getNodeModel();
+                        if (m_viewSet && !m_initialized) {
+                            WizardNode<REP, VAL> model = getModel();
                             WizardViewCreator<REP, VAL> creator = getViewCreator();
                             String initCall =
                                 creator.createInitJSViewMethodCall(model.getViewRepresentation(), model.getViewValue());
                             initCall = creator.wrapInTryCatch(initCall);
+                            //The execute call might fire the completed event again in some browsers!
+                            m_initialized = true;
                             m_browser.execute(initCall);
                         }
                     }
@@ -364,6 +369,7 @@ public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
 
     private void setBrowserURL() {
         try {
+            m_initialized = false;
             File src = getViewSource();
             if (src != null && src.exists()) {
                 m_browser.setUrl(getViewSource().getAbsolutePath());
@@ -390,6 +396,10 @@ public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
         m_shell = null;
         m_browser = null;
         m_viewSet = false;
+        // do instanceof check here to avoid a public discard method in the ViewableModel interface
+        if (getViewableModel() instanceof SubnodeViewableModel) {
+            ((SubnodeViewableModel)getViewableModel()).discard();
+        }
     }
 
     private boolean applyTriggered(final boolean useAsDefault) {
@@ -413,12 +423,26 @@ public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
                 creator.wrapInTryCatch("return JSON.stringify(" + creator.getNamespacePrefix() + pullMethod + "());");
             String jsonString = (String)m_browser.evaluate(evalCode);
             try {
-                VAL viewValue = getNodeModel().createEmptyViewValue();
+                VAL viewValue = getModel().createEmptyViewValue();
                 viewValue.loadFromStream(new ByteArrayInputStream(jsonString.getBytes(Charset.forName("UTF-8"))));
-                triggerReExecution(viewValue, useAsDefault, new DefaultReexecutionCallback());
+                setLastRetrievedValue(viewValue);
+                ValidationError error = getModel().validateViewValue(viewValue);
+                if (error != null) {
+                    String showErrorMethod = template.getSetValidationErrorMethodName();
+                    String escapedError = error.getError().replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
+                    String showErrorCall = creator.wrapInTryCatch(creator.getNamespacePrefix() + showErrorMethod + "('" + escapedError + "');");
+                    m_browser.execute(showErrorCall);
+                    return false;
+                }
+                if (getModel() instanceof NodeModel) {
+                    triggerReExecution(viewValue, useAsDefault, new DefaultReexecutionCallback());
+                } else {
+                    getModel().loadViewValue(viewValue, useAsDefault);
+                }
+
                 return true;
             } catch (Exception e) {
-                //TODO: display error?
+                LOGGER.error("Could not set error message or trigger re-execution: " + e.getMessage(), e);
                 return false;
             }
         } else {
@@ -445,9 +469,9 @@ public final class WizardNodeView<T extends NodeModel & WizardNode<REP, VAL>,
             return false;
         }
         try {
-            VAL viewValue = getNodeModel().createEmptyViewValue();
+            VAL viewValue = getModel().createEmptyViewValue();
             viewValue.loadFromStream(new ByteArrayInputStream(jsonString.getBytes(Charset.forName("UTF-8"))));
-            VAL currentViewValue = getNodeModel().getViewValue();
+            VAL currentViewValue = getModel().getViewValue();
             if (currentViewValue != null) {
                 return !currentViewValue.equals(viewValue);
             }

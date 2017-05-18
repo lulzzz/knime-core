@@ -94,6 +94,8 @@ public class ROCCalculator {
 
     private int m_maxPoints;
 
+    private boolean m_ignoreMissingValues;
+
     private BufferedDataTable m_outTable;
 
     private List<ROCCurve> m_outCurves;
@@ -116,10 +118,25 @@ public class ROCCalculator {
      */
     public ROCCalculator(final List<String> curves, final String classCol,
                         final int maxPoints, final String posClass) {
+        this(curves, classCol, maxPoints, posClass, false);
+    }
+
+    /**
+     * Instantiates the ROCCalculator.
+     * @param curves the score column of the curves
+     * @param classCol the class column
+     * @param maxPoints the maximum number of points to put into the calculated ROC curves
+     * @param posClass the the positive class
+     * @param ignoreMissingValues whether ignore missing values
+     * @since 3.4
+     */
+    public ROCCalculator(final List<String> curves, final String classCol,
+                        final int maxPoints, final String posClass, final boolean ignoreMissingValues) {
         m_curves = curves;
         m_classCol = classCol;
         m_posClass = posClass;
         m_maxPoints = maxPoints;
+        m_ignoreMissingValues = ignoreMissingValues;
     }
 
     /**
@@ -161,6 +178,13 @@ public class ROCCalculator {
             for (DataRow row : sortedTable) {
                 exec.checkCanceled();
                 DataCell realClass = row.getCell(classIndex);
+                if (realClass.isMissing() || row.getCell(scoreColIndex).isMissing()) {
+                    m_warningMessage = "Table contains missing values.";
+                    if (m_ignoreMissingValues) {
+                        m_warningMessage = "Missing values were ignored according to the node settings.";
+                        continue;
+                    }
+                }
                 if (realClass.toString().equals(m_posClass)) {
                     tp++;
                 } else {

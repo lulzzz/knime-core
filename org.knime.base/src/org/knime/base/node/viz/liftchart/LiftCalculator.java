@@ -77,6 +77,8 @@ public class LiftCalculator {
     private String m_responseLabel;
     private double m_intervalWidth;
 
+    private boolean m_ignoreMissingValues;
+
     private BufferedDataTable m_lift;
     private BufferedDataTable m_response;
     private SortedTable m_sorted;
@@ -111,10 +113,25 @@ public class LiftCalculator {
      */
     public LiftCalculator(final String responseColumn, final String probabilityColumn,
                             final String responseLabel, final double intervalWidth) {
+        this(responseColumn, probabilityColumn, responseLabel, intervalWidth, false);
+    }
+
+    /**
+     * Creates a new instance of LisftCalculator.
+     * @param responseColumn the response column
+     * @param probabilityColumn the probability column
+     * @param responseLabel the response label
+     * @param intervalWidth the interval width
+     * @param ignoreMissingValues whether ignore missing values
+     * @since 3.4
+     */
+    public LiftCalculator(final String responseColumn, final String probabilityColumn,
+                            final String responseLabel, final double intervalWidth, final boolean ignoreMissingValues) {
         m_responseColumn = responseColumn;
         m_probabilityColumn = probabilityColumn;
         m_responseLabel = responseLabel;
         m_intervalWidth = intervalWidth;
+        m_ignoreMissingValues = ignoreMissingValues;
     }
 
     /**
@@ -131,6 +148,7 @@ public class LiftCalculator {
         List<String> inclList = new LinkedList<String>();
 
         inclList.add(m_probabilityColumn);
+        int probColInd = table.getDataTableSpec().findColumnIndex(m_probabilityColumn);
 
         boolean[] order = new boolean[]{false};
 
@@ -146,10 +164,16 @@ public class LiftCalculator {
 
         int rowIndex = 0;
         for (DataRow row : m_sorted) {
-            if (row.getCell(predColIndex).isMissing()) {
-                warning = "There are missing values."
-                        + " Please check your data.";
-                continue;
+            if (row.getCell(predColIndex).isMissing() || row.getCell(probColInd).isMissing()) {
+                warning = "Table contains missing values.";
+                if (row.getCell(predColIndex).isMissing()) {
+                    // miss. values in class column we always ignore
+                    continue;
+                }
+                if (m_ignoreMissingValues) {
+                    warning = "Missing values were ignored according to the node settings.";
+                    continue;
+                }
             }
 
             String response =

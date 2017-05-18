@@ -56,6 +56,7 @@ import org.knime.core.api.node.workflow.NodeStateEvent;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CastUtil;
 import org.knime.core.node.workflow.NodeContainer;
+import org.knime.core.node.workflow.SubNodeContainer;
 import org.knime.core.node.workflow.action.InteractiveWebViewsResult;
 import org.knime.workbench.KNIMEEditorPlugin;
 import org.knime.workbench.core.util.ImageRepository;
@@ -149,6 +150,7 @@ public class ExecuteAndOpenViewAction extends AbstractNodeAction {
             INodeContainer nc = parts[i].getNodeContainer();
             boolean hasView = nc.getNrViews() > 0;
             hasView |= nc.hasInteractiveView() || CastUtil.cast(nc, NodeContainer.class).getInteractiveWebViews().size() > 0;
+            hasView |= OpenSubnodeWebViewAction.hasContainerView(CastUtil.cast(nc, NodeContainer.class));
             if (wm.canExecuteNode(nc.getID()) && hasView) {
                 return true;
             }
@@ -160,6 +162,7 @@ public class ExecuteAndOpenViewAction extends AbstractNodeAction {
         boolean hasView = cont.getNrViews() > 0;
         final InteractiveWebViewsResult interactiveWebViews = cont.getInteractiveWebViews();
         hasView |= cont.hasInteractiveView() || interactiveWebViews.size() > 0;
+        hasView |= OpenSubnodeWebViewAction.hasContainerView(cont);
         if (hasView) {
             // another listener must be registered at the workflow manager to
             // receive also those events from nodes that have just been queued
@@ -179,6 +182,8 @@ public class ExecuteAndOpenViewAction extends AbstractNodeAction {
                                 IAction viewAction;
                                 if (cont.hasInteractiveView()) {
                                     viewAction = new OpenInteractiveViewAction(cont);
+                                } else if (cont instanceof SubNodeContainer) {
+                                    viewAction = new OpenSubnodeWebViewAction((SubNodeContainer)cont);
                                 } else if (interactiveWebViews.size() > 0) {
                                     viewAction = new OpenInteractiveWebViewAction(cont, interactiveWebViews.get(0));
                                 } else {

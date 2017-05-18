@@ -72,6 +72,7 @@ import org.knime.core.node.util.CastUtil;
 import org.knime.core.node.workflow.LoopEndNode;
 import org.knime.core.node.workflow.NodeContainer;
 import org.knime.core.node.workflow.SingleNodeContainer;
+import org.knime.core.node.workflow.SubNodeContainer;
 import org.knime.core.node.workflow.WorkflowManager;
 import org.knime.core.node.workflow.action.InteractiveWebViewsResult;
 import org.knime.workbench.KNIMEEditorPlugin;
@@ -100,6 +101,7 @@ import org.knime.workbench.editor2.actions.OpenInteractiveViewAction;
 import org.knime.workbench.editor2.actions.OpenInteractiveWebViewAction;
 import org.knime.workbench.editor2.actions.OpenPortViewAction;
 import org.knime.workbench.editor2.actions.OpenSubNodeEditorAction;
+import org.knime.workbench.editor2.actions.OpenSubnodeWebViewAction;
 import org.knime.workbench.editor2.actions.OpenSubworkflowEditorAction;
 import org.knime.workbench.editor2.actions.OpenViewAction;
 import org.knime.workbench.editor2.actions.OpenWorkflowPortViewAction;
@@ -352,6 +354,7 @@ public class WorkflowContextMenuProvider extends ContextMenuProvider {
                     // in the 'else' block? Yes:
                     // it's only one or the other -- do not support nodes that have
                     // both (standard swing) interactive and web interactive views
+                    //TODO for subnodes move to submenu?
                     InteractiveWebViewsResult interactiveWebViewsResult = CastUtil.cast(container, NodeContainer.class).getInteractiveWebViews();
                     for (int i = 0; i < interactiveWebViewsResult.size(); i++) {
                         action = new OpenInteractiveWebViewAction(CastUtil.cast(container, NodeContainer.class), interactiveWebViewsResult.get(i));
@@ -408,6 +411,9 @@ public class WorkflowContextMenuProvider extends ContextMenuProvider {
                     action = m_actionRegistry.getAction(ConvertSubNodeToMetaNodeAction.ID);
                     subnodeMenuMgr.appendToGroup(GROUP_SUBNODE, action);
                     ((AbstractNodeAction)action).update();
+
+                    action = new OpenSubnodeWebViewAction((SubNodeContainer)container);
+                    manager.appendToGroup(IWorkbenchActionConstants.GROUP_APP, action);
                 }
 
                 // add port views

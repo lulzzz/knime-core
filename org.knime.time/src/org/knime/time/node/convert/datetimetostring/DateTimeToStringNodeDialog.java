@@ -71,10 +71,10 @@ import javax.swing.event.ChangeListener;
 import org.apache.commons.lang3.LocaleUtils;
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.data.DataType;
-import org.knime.core.data.time.localdate.LocalDateCellFactory;
-import org.knime.core.data.time.localdatetime.LocalDateTimeCellFactory;
-import org.knime.core.data.time.localtime.LocalTimeCellFactory;
-import org.knime.core.data.time.zoneddatetime.ZonedDateTimeCellFactory;
+import org.knime.core.data.time.localdate.LocalDateValue;
+import org.knime.core.data.time.localdatetime.LocalDateTimeValue;
+import org.knime.core.data.time.localtime.LocalTimeValue;
+import org.knime.core.data.time.zoneddatetime.ZonedDateTimeValue;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeSettingsRO;
@@ -86,14 +86,14 @@ import org.knime.core.node.defaultnodesettings.DialogComponentString;
 import org.knime.core.node.defaultnodesettings.DialogComponentStringSelection;
 import org.knime.core.node.defaultnodesettings.SettingsModelColumnFilter2;
 import org.knime.core.node.defaultnodesettings.SettingsModelString;
-import org.knime.time.node.convert.DateTimeTypes;
+import org.knime.time.util.DateTimeType;
 
 /**
  * The node dialog of the node which converts strings to the new date&time types.
  *
  * @author Simon Schmid, KNIME.com, Konstanz, Germany
  */
-public class DateTimeToStringNodeDialog extends NodeDialogPane {
+final class DateTimeToStringNodeDialog extends NodeDialogPane {
 
     private final DialogComponentColumnFilter2 m_dialogCompColFilter;
 
@@ -240,7 +240,7 @@ public class DateTimeToStringNodeDialog extends NodeDialogPane {
                 int i = 0;
                 for (String include : includes) {
                     final DataType type = m_spec.getColumnSpec(include).getType();
-                    if (type.equals(LocalDateCellFactory.TYPE)) {
+                    if (type.isCompatible(LocalDateValue.class)) {
                         try {
                             final LocalDate now1 = LocalDate.now();
                             final DateTimeFormatter formatter1 = DateTimeFormatter.ofPattern(format);
@@ -248,12 +248,12 @@ public class DateTimeToStringNodeDialog extends NodeDialogPane {
                             setTypeFormatWarningNull();
                         } catch (DateTimeException exception) {
                             setTypeFormatWarningMessage(exception,
-                                "'" + includes[i] + "' is a " + DateTimeTypes.LOCAL_DATE.toString()
+                                "'" + includes[i] + "' is a " + DateTimeType.LOCAL_DATE.toString()
                                     + " and only contains a date, but the format contains time fields!");
                         } catch (IllegalArgumentException exception) {
                             setTypeFormatWarningMessage(exception, exception.getMessage());
                         }
-                    } else if (type.equals(LocalTimeCellFactory.TYPE)) {
+                    } else if (type.isCompatible(LocalTimeValue.class)) {
                         try {
                             final LocalTime now2 = LocalTime.now();
                             final DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern(format);
@@ -261,12 +261,12 @@ public class DateTimeToStringNodeDialog extends NodeDialogPane {
                             setTypeFormatWarningNull();
                         } catch (DateTimeException exception) {
                             setTypeFormatWarningMessage(exception,
-                                "'" + includes[i] + "' is a " + DateTimeTypes.LOCAL_TIME.toString()
+                                "'" + includes[i] + "' is a " + DateTimeType.LOCAL_TIME.toString()
                                     + " and only contains a time, but the format contains date fields!");
                         } catch (IllegalArgumentException exception) {
                             setTypeFormatWarningMessage(exception, exception.getMessage());
                         }
-                    } else if (type.equals(LocalDateTimeCellFactory.TYPE)) {
+                    } else if (type.isCompatible(LocalDateTimeValue.class)) {
                         try {
                             final LocalDateTime now3 = LocalDateTime.now();
                             final DateTimeFormatter formatter3 = DateTimeFormatter.ofPattern(format);
@@ -274,12 +274,12 @@ public class DateTimeToStringNodeDialog extends NodeDialogPane {
                             setTypeFormatWarningNull();
                         } catch (DateTimeException exception) {
                             setTypeFormatWarningMessage(exception, "'" + includes[i] + "' is a "
-                                + DateTimeTypes.LOCAL_DATE_TIME.toString()
+                                + DateTimeType.LOCAL_DATE_TIME.toString()
                                 + " and only contains a date and a time, but the format contains time zone fields!");
                         } catch (IllegalArgumentException exception) {
                             setTypeFormatWarningMessage(exception, exception.getMessage());
                         }
-                    } else if (type.equals(ZonedDateTimeCellFactory.TYPE)) {
+                    } else if (type.isCompatible(ZonedDateTimeValue.class)) {
                         try {
                             final ZonedDateTime now4 = ZonedDateTime.now();
                             final DateTimeFormatter formatter4 = DateTimeFormatter.ofPattern(format);
@@ -287,7 +287,7 @@ public class DateTimeToStringNodeDialog extends NodeDialogPane {
                             setTypeFormatWarningNull();
                         } catch (DateTimeException exception) {
                             setTypeFormatWarningMessage(exception,
-                                "'" + includes[i] + "' is a " + DateTimeTypes.ZONED_DATE_TIME.toString()
+                                "'" + includes[i] + "' is a " + DateTimeType.ZONED_DATE_TIME.toString()
                                     + " and only contains a date, time, and time zone or offset!");
                         } catch (IllegalArgumentException exception) {
                             setTypeFormatWarningMessage(exception, exception.getMessage());

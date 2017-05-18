@@ -66,7 +66,7 @@ import org.knime.base.node.mine.treeensemble2.data.memberships.BitVectorDataInde
 import org.knime.base.node.mine.treeensemble2.data.memberships.DefaultDataIndexManager;
 import org.knime.base.node.mine.treeensemble2.data.memberships.IDataIndexManager;
 import org.knime.base.node.mine.treeensemble2.model.AbstractGradientBoostingModel;
-import org.knime.base.node.mine.treeensemble2.model.TreeEnsembleModel.TreeType;
+import org.knime.base.node.mine.treeensemble2.model.AbstractTreeEnsembleModel.TreeType;
 import org.knime.base.node.mine.treeensemble2.model.TreeModelRegression;
 import org.knime.base.node.mine.treeensemble2.node.gradientboosting.learner.GradientBoostingLearnerConfiguration;
 import org.knime.base.node.mine.treeensemble2.sample.row.RowSample;
@@ -223,7 +223,7 @@ public abstract class AbstractGradientBoostingLearner {
     }
 
     private static Object handleMissingValues(final Object value, final TreeAttributeColumnData column) {
-        if (column.containsMissingValues()) {
+//        if (column.containsMissingValues()) {
             if (column instanceof TreeNumericColumnData) {
                 if (((Double)value).isNaN()) {
                     return PredictorRecord.NULL;
@@ -235,7 +235,7 @@ public abstract class AbstractGradientBoostingLearner {
                     return PredictorRecord.NULL;
                 }
             }
-        }
+//        }
 
         return value;
     }

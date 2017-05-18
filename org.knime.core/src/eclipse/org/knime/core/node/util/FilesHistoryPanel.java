@@ -69,19 +69,24 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
@@ -97,6 +102,7 @@ import org.apache.commons.httpclient.util.URIUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.knime.core.node.FlowVariableModel;
 import org.knime.core.node.FlowVariableModelButton;
+import org.knime.core.node.KNIMEConstants;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.util.FileUtil;
 import org.knime.core.util.SimpleFileFilter;
@@ -111,6 +117,9 @@ import org.knime.core.util.SimpleFileFilter;
  */
 @SuppressWarnings("serial")
 public final class FilesHistoryPanel extends JPanel {
+    private static final Duration DEFAULT_CONNECT_TIMEOUT =
+        Duration.ofMillis(Integer.getInteger(KNIMEConstants.PROPERTY_URL_TIMEOUT, 1000));
+
     /**
      * Enum for whether and which location validation should be performed.
      *
@@ -402,6 +411,10 @@ public final class FilesHistoryPanel extends JPanel {
 
     private String m_forcedFileExtensionOnSave = null;
 
+    private final JSpinner m_connectTimeoutSpinner;
+
+    private final JCheckBox m_userSetTimeoutCheckBox;
+
     /**
      * Creates new instance, sets properties, for instance renderer,
      * accordingly.
@@ -521,6 +534,12 @@ public final class FilesHistoryPanel extends JPanel {
         m_warnMsg.setMinimumSize(new Dimension(350, 25));
         m_warnMsg.setForeground(Color.red);
 
+        m_connectTimeoutSpinner = new JSpinner(new SpinnerNumberModel(1, 1, Integer.MAX_VALUE / 1000, 1));
+        m_connectTimeoutSpinner.setEnabled(false);
+        m_userSetTimeoutCheckBox = new JCheckBox("Custom connection timeout [s]: ");
+        m_userSetTimeoutCheckBox
+            .addActionListener(e -> m_connectTimeoutSpinner.setEnabled(m_userSetTimeoutCheckBox.isSelected()));
+
         setLayout(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
@@ -595,6 +614,15 @@ public final class FilesHistoryPanel extends JPanel {
             c.gridwidth = (fvm == null) ? 2 : 3;
             add(m_warnMsg, c);
         }
+        m_connectTimeoutSpinner.setPreferredSize(new Dimension(100, m_connectTimeoutSpinner.getPreferredSize().height));
+        c.gridy++;
+        c.gridx = 0;
+        c.weightx = 0;
+        JPanel timeoutPanel = new JPanel();
+        timeoutPanel.add(m_userSetTimeoutCheckBox);
+        timeoutPanel.add(m_connectTimeoutSpinner);
+        timeoutPanel.setVisible(false);
+        add(timeoutPanel, c);
         fileLocationChanged();
         updateHistory();
     }
@@ -739,6 +767,43 @@ public final class FilesHistoryPanel extends JPanel {
         }
     }
 
+    /**
+     * Returns the connect timeout.
+     *
+     * @return the connect timeout if set by the user or an empty optional
+     * @since 3.4
+     */
+    public Optional<Duration> getConnectTimeout() {
+        return m_userSetTimeoutCheckBox.isSelected()
+            ? Optional.of(Duration.ofSeconds((int)m_connectTimeoutSpinner.getValue())) : Optional.empty();
+    }
+
+    /**
+     * Sets the connect timeout in the dialog. Note the that currently the component will only show full seconds.
+     *
+     * @param timeout the timeout or <code>null</code> if the default timeout should be used
+     * @since 3.4
+     */
+    public void setConnectTimeout(final Duration timeout) {
+        final Duration timeoutToUse = timeout == null ? DEFAULT_CONNECT_TIMEOUT : timeout;
+        if (SwingUtilities.isEventDispatchThread()) {
+            m_connectTimeoutSpinner.setValue(timeoutToUse.getSeconds());
+            if ((timeout != null) && !m_userSetTimeoutCheckBox.isSelected()) {
+                m_userSetTimeoutCheckBox.doClick();
+            }
+        } else {
+            ViewUtils.invokeAndWaitInEDT(new Runnable() {
+                @Override
+                public void run() {
+                    m_connectTimeoutSpinner.setValue(timeoutToUse.getSeconds());
+                    if ((timeout != null) && !m_userSetTimeoutCheckBox.isSelected()) {
+                        m_userSetTimeoutCheckBox.doClick();
+                    }
+                }
+            });
+        }
+    }
+
     /** Updates the elements in the combo box, reads the file history. */
     public void updateHistory() {
         StringHistory history = StringHistory.getInstance(m_historyID);
@@ -824,6 +889,16 @@ public final class FilesHistoryPanel extends JPanel {
     public void setDialogTypeSaveWithExtension(final String forcedExtension) {
         setDialogType(JFileChooser.SAVE_DIALOG);
         m_forcedFileExtensionOnSave = StringUtils.defaultIfBlank(forcedExtension, null);
+    }
+
+    /**
+     * Sets whether to show the connect timeout field in the panel.
+     *
+     * @param showTimeout
+     * @since 3.4
+     */
+    public void setShowConnectTimeoutField(final boolean showTimeout){
+        m_connectTimeoutSpinner.getParent().setVisible(showTimeout);
     }
 
     /**

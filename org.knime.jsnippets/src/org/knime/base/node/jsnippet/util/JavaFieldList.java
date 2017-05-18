@@ -115,12 +115,12 @@ public class JavaFieldList<T extends JavaField> extends ArrayList<T> {
         for (int i = 0; i < size; i++) {
             T settings = m_factory.createJavaFieldSettings();
             try {
-                settings.loadSettingsForDialog(
-                        config.getConfig(Integer.toString(i)));
+                settings.loadSettings(config.getConfig(Integer.toString(i)));
+                add(settings);
             } catch (InvalidSettingsException e) {
-                throw new IllegalStateException(e);
+                // should never happen.
+                throw new IllegalStateException("Integer key for config.getConfig() should always be valid, but was not.", e);
             }
-            add(settings);
         }
     }
 

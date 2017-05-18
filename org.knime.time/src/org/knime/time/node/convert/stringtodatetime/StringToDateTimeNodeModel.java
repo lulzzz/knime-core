@@ -100,15 +100,16 @@ import org.knime.core.node.streamable.RowInput;
 import org.knime.core.node.streamable.RowOutput;
 import org.knime.core.node.streamable.StreamableOperator;
 import org.knime.core.node.util.StringHistory;
+import org.knime.core.node.util.filter.InputFilter;
 import org.knime.core.util.UniqueNameGenerator;
-import org.knime.time.node.convert.DateTimeTypes;
+import org.knime.time.util.DateTimeType;
 
 /**
  * The node model of the node which converts strings to the new date&time types.
  *
  * @author Simon Schmid, KNIME.com, Konstanz, Germany
  */
-public class StringToDateTimeNodeModel extends NodeModel {
+final class StringToDateTimeNodeModel extends NodeModel {
 
     static final String FORMAT_HISTORY_KEY = "string_to_date_formats";
 
@@ -128,9 +129,11 @@ public class StringToDateTimeNodeModel extends NodeModel {
 
     private final SettingsModelBoolean m_cancelOnFail = createCancelOnFailModel();
 
-    private String m_selectedType;
+    private String m_selectedType = DateTimeType.LOCAL_DATE_TIME.name();
 
     private int m_failCounter;
+
+    private boolean m_hasValidatedConfiguration = false;
 
     /** @return the column select model, used in both dialog and model. */
     @SuppressWarnings("unchecked")
@@ -197,6 +200,21 @@ public class StringToDateTimeNodeModel extends NodeModel {
     }
 
     /**
+     * Sets the column selections to not include any columns.
+     *
+     * @param tableSpec the corresponding spec
+     */
+    private void setDefaultColumnSelection(final DataTableSpec tableSpec) {
+        final InputFilter<DataColumnSpec> filter = new InputFilter<DataColumnSpec>() {
+            @Override
+            public boolean include(final DataColumnSpec spec) {
+                return spec.getType().getPreferredValueClass() == StringValue.class;
+            }
+        };
+        m_colSelect.loadDefaults(tableSpec, filter, true);
+    }
+
+    /**
      * one in, one out
      */
     protected StringToDateTimeNodeModel() {
@@ -208,8 +226,9 @@ public class StringToDateTimeNodeModel extends NodeModel {
      */
     @Override
     protected DataTableSpec[] configure(final DataTableSpec[] inSpecs) throws InvalidSettingsException {
-        if (m_selectedType == null) {
-            m_selectedType = DateTimeTypes.LOCAL_DATE_TIME.name();
+        if (!m_hasValidatedConfiguration) {
+            setDefaultColumnSelection(inSpecs[0]);
+            throw new InvalidSettingsException("Node must be configured!");
         }
         final ColumnRearranger columnRearranger = createColumnRearranger(inSpecs[0]);
         return new DataTableSpec[]{columnRearranger.createSpec()};
@@ -243,13 +262,13 @@ public class StringToDateTimeNodeModel extends NodeModel {
         for (String includedCol : includeList) {
             if (m_isReplaceOrAppend.getStringValue().equals(OPTION_REPLACE)) {
                 final DataColumnSpecCreator dataColumnSpecCreator =
-                    new DataColumnSpecCreator(includedCol, DateTimeTypes.valueOf(m_selectedType).getDataType());
+                    new DataColumnSpecCreator(includedCol, DateTimeType.valueOf(m_selectedType).getDataType());
                 final StringToTimeCellFactory cellFac =
                     new StringToTimeCellFactory(dataColumnSpecCreator.createSpec(), includeIndeces[i++]);
                 rearranger.replace(cellFac, includedCol);
             } else {
                 final DataColumnSpec dataColSpec = new UniqueNameGenerator(inSpec).newColumn(
-                    includedCol + m_suffix.getStringValue(), DateTimeTypes.valueOf(m_selectedType).getDataType());
+                    includedCol + m_suffix.getStringValue(), DateTimeType.valueOf(m_selectedType).getDataType());
                 final StringToTimeCellFactory cellFac = new StringToTimeCellFactory(dataColSpec, includeIndeces[i++]);
                 rearranger.append(cellFac);
             }
@@ -294,14 +313,14 @@ public class StringToDateTimeNodeModel extends NodeModel {
                     for (int i = 0; i < includeIndeces.length; i++) {
                         if (isReplace) {
                             final DataColumnSpecCreator dataColumnSpecCreator = new DataColumnSpecCreator(
-                                includeList[i], DateTimeTypes.valueOf(m_selectedType).getDataType());
+                                includeList[i], DateTimeType.valueOf(m_selectedType).getDataType());
                             final StringToTimeCellFactory cellFac =
                                 new StringToTimeCellFactory(dataColumnSpecCreator.createSpec(), includeIndeces[i]);
                             datacells[i] = cellFac.getCell(row);
                         } else {
                             final DataColumnSpec dataColSpec =
                                 new UniqueNameGenerator(inSpec).newColumn(includeList[i] + m_suffix.getStringValue(),
-                                    DateTimeTypes.valueOf(m_selectedType).getDataType());
+                                    DateTimeType.valueOf(m_selectedType).getDataType());
                             final StringToTimeCellFactory cellFac =
                                 new StringToTimeCellFactory(dataColSpec, includeIndeces[i]);
                             datacells[i] = cellFac.getCell(row);
@@ -383,6 +402,7 @@ public class StringToDateTimeNodeModel extends NodeModel {
             }
             throw new InvalidSettingsException(msg, e);
         }
+        settings.getString("typeEnum");
     }
 
     /**
@@ -402,6 +422,7 @@ public class StringToDateTimeNodeModel extends NodeModel {
         if (!createPredefinedFormats().contains(dateformat)) {
             StringHistory.getInstance(FORMAT_HISTORY_KEY).add(dateformat);
         }
+        m_hasValidatedConfiguration = true;
     }
 
     /**
@@ -441,7 +462,7 @@ public class StringToDateTimeNodeModel extends NodeModel {
                 final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(m_format.getStringValue(),
                     LocaleUtils.toLocale(m_locale.getStringValue()));
 
-                switch (DateTimeTypes.valueOf(m_selectedType)) {
+                switch (DateTimeType.valueOf(m_selectedType)) {
                     case LOCAL_DATE: {
                         final LocalDate ld = LocalDate.parse(input, formatter);
                         return LocalDateCellFactory.create(ld);

@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Optional;
@@ -61,6 +62,7 @@ import java.util.Vector;
 import org.knime.base.node.util.BufferedFileReader;
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.node.InvalidSettingsException;
+import org.knime.core.node.KNIMEConstants;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
@@ -79,6 +81,8 @@ import org.knime.core.util.tokenizer.TokenizerSettings;
  * @author ohl, University of Konstanz
  */
 public class FileReaderSettings extends TokenizerSettings {
+    private static final Duration DEFAULT_CONNECT_TIMEOUT =
+        Duration.ofMillis(Integer.getInteger(KNIMEConstants.PROPERTY_URL_TIMEOUT, 1000));
 
     /** The node logger for this class. */
     private static final NodeLogger LOGGER =
@@ -162,6 +166,8 @@ public class FileReaderSettings extends TokenizerSettings {
     // Null uses VM default.
     private String m_charsetName;
 
+    private Duration m_connectTimeout;
+
     /**
      * This will be used if the file has not row headers and no row prefix is
      * set.
@@ -211,6 +217,7 @@ public class FileReaderSettings extends TokenizerSettings {
 
     private static final String CFGKEY_CHARSETNAME = "CharsetName";
 
+    private static final String CFGKEY_CONNECTTIMEOUT = "ConnectTimeoutInSeconds";
 
     /**
      * Creates a new object holding all settings needed to read the specified
@@ -255,6 +262,7 @@ public class FileReaderSettings extends TokenizerSettings {
 
         m_charsetName = clonee.m_charsetName;
 
+        m_connectTimeout = clonee.m_connectTimeout;
     }
 
     // initializes private members. Needs to be called from two constructors.
@@ -282,6 +290,8 @@ public class FileReaderSettings extends TokenizerSettings {
         m_columnNumberDeterminingLine = -1;
 
         m_charsetName = null; // uses the default char set name
+
+        m_connectTimeout = DEFAULT_CONNECT_TIMEOUT;
 
     }
 
@@ -422,8 +432,12 @@ public class FileReaderSettings extends TokenizerSettings {
             // default to null - which uses the default char set name
             m_charsetName = cfg.getString(CFGKEY_CHARSETNAME, null);
 
+            if (cfg.containsKey(CFGKEY_CONNECTTIMEOUT)) {
+                m_connectTimeout = Duration.ofSeconds(cfg.getInt(CFGKEY_CONNECTTIMEOUT));
+            } else {
+                m_connectTimeout = DEFAULT_CONNECT_TIMEOUT;
+            }
         } // if (cfg != null)
-
     }
 
     /**
@@ -466,7 +480,7 @@ public class FileReaderSettings extends TokenizerSettings {
         cfg.addLong(CFGKEY_MAXROWS, m_maxNumberOfRowsToRead);
         cfg.addInt(CFGKEY_COLDETERMLINENUM, m_columnNumberDeterminingLine);
         cfg.addString(CFGKEY_CHARSETNAME, m_charsetName);
-
+        cfg.addInt(CFGKEY_CONNECTTIMEOUT, (int) (m_connectTimeout.toMillis() / 1000));
     }
 
     /*
@@ -697,7 +711,7 @@ public class FileReaderSettings extends TokenizerSettings {
      */
     public BufferedFileReader createNewInputReader() throws IOException {
         return BufferedFileReader.createNewReader(getDataFileLocation(),
-                getCharsetName());
+                getCharsetName(), (int) m_connectTimeout.toMillis());
     }
 
     /**
@@ -1179,6 +1193,37 @@ public class FileReaderSettings extends TokenizerSettings {
      */
     public void setMaximumNumberOfRowsToRead(final long maxNum) {
         m_maxNumberOfRowsToRead = maxNum;
+    }
+
+    /**
+     * Returns the default connection timeout as set in the knime.ini;
+     *
+     * @return the timeout
+     * @see KNIMEConstants#PROPERTY_URL_TIMEOUT
+     * @since 3.4
+     */
+    public static Duration getDefaultConnectTimeout(){
+        return DEFAULT_CONNECT_TIMEOUT;
+    }
+
+    /**
+     * Returns the connection timeout.
+     *
+     * @return the timeout
+     * @since 3.4
+     */
+    public Duration getConnectTimeout(){
+        return m_connectTimeout;
+    }
+
+    /**
+     * Sets a new connection timeout.
+     *
+     * @param value the new connection timeout; passing <code>null</code> will set the default timeout
+     * @since 3.4
+     */
+    public void setConnectTimeout(final Duration value){
+        m_connectTimeout = value != null ? value : DEFAULT_CONNECT_TIMEOUT;
     }
 
     /**

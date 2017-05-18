@@ -64,15 +64,21 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -89,10 +95,14 @@ import org.knime.core.node.ExecutionMonitor;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.KNIMEConstants;
 import org.knime.core.node.NodeLogger;
+import org.knime.core.node.util.CheckUtils;
 import org.knime.core.node.workflow.NodeContext;
 import org.knime.core.node.workflow.WorkflowContext;
 import org.knime.core.node.workflow.WorkflowManager;
 import org.knime.core.util.pathresolve.ResolverUtil;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceReference;
 
 /**
  * Utility class to do some basic file handling that is not available through
@@ -1250,7 +1260,7 @@ public final class FileUtil {
      * connecting and reading.
      *
      * @param url any URL
-     * @param timeout the read/connection timeout
+     * @param timeout the read/connection timeout in milliseconds
      * @return an input stream
      * @throws IOException if an I/O error occurs
      * @since 2.10
@@ -1299,6 +1309,92 @@ public final class FileUtil {
             stream = new FileInputStream(file);
         }
         return new BufferedInputStream(stream);
+    }
+
+    /**
+     * Lists all files at the given {@link URL}. Can handle local folders as well as the 'knime' protocol.
+     * {@link NodeContext} and {@link WorkflowContext} must not be null when calling this method and the knime-protocol
+     * is used.
+     *
+     * @param url any {@link URL}
+     * @param filter {@link Predicate} to filter {@link URL}s. The filter is <em>not</em> applied to directories
+     *            encountered during recursive listing!
+     * @param recursive <code>true</code> if files should be listed recursively, <code>false</code> if only the contents
+     *            of the start folder should be listed
+     * @return all {@link URL}s which pass the filter test.
+     *
+     * @throws IOException if an I/O error occurs while resolving the URL
+     * @throws URISyntaxException if the passed URL does not conform with RFC2396 for URIs
+     * @throws IllegalStateException if {@link NodeContext} or {@link WorkflowContext} are null.
+     * @since 3.4
+     */
+    public static List<URL> listFiles(final URL url, final Predicate<URL> filter, final boolean recursive)
+        throws IOException, URISyntaxException {
+        if ("file".equalsIgnoreCase(url.getProtocol())) {
+            return listLocalDirectory(url, filter, recursive);
+        } else if ("knime".equalsIgnoreCase(url.getProtocol())) {
+            WorkflowContext workflowContext = CheckUtils.checkArgumentNotNull(
+                CheckUtils.checkArgumentNotNull(
+                    CheckUtils.checkArgumentNotNull(NodeContext.getContext(),
+                        "No node context available, which is required for resolving knime-URLs").getWorkflowManager(),
+                    "No workflow manager in node context, which is required for resolving knime-URLs")
+                .getContext(), "No workflow context available, which is required for resolving knime-URLs");
+
+            if (isRelativeKnimeURL(url) && workflowContext.getRemoteRepositoryAddress().isPresent()
+                && workflowContext.getServerAuthToken().isPresent()) {
+                BundleContext ctx = FrameworkUtil.getBundle(IRemoteFileUtilsService.class).getBundleContext();
+                ServiceReference<IRemoteFileUtilsService> ref =
+                    ctx.getServiceReference(IRemoteFileUtilsService.class);
+                List<URL> files;
+                if (ref != null) {
+                    try {
+                        files = ctx.getService(ref).listRemoteFiles(url, filter, recursive);
+                    } finally {
+                        ctx.ungetService(ref);
+                    }
+                } else {
+                    files = Collections.emptyList();
+                    LOGGER.warn("No service registered for listing files in '" + url + "'");
+                }
+                return files;
+            } else {
+                CheckUtils.checkArgumentNotNull(FileUtil.resolveToPath(url), "Only relative knime URLs are supported: \"%s\"", url);
+                return listLocalDirectory(url, filter, recursive);
+            }
+        } else {
+            throw new IllegalArgumentException(url.getProtocol() + "-URLs cannot be listed");
+        }
+    }
+
+    private static List<URL> listLocalDirectory(final URL url, final Predicate<URL> filter, final boolean recursive)
+        throws MalformedURLException, IOException, URISyntaxException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(FileUtil.resolveToPath(url))) {
+            List<URL> res = new ArrayList<>();
+            Iterator<Path> iterator = stream.iterator();
+            while (iterator.hasNext()) {
+                Path p = iterator.next();
+                if (Files.isDirectory(p)) {
+                    if (recursive) {
+                        if (Thread.currentThread().isInterrupted()) {
+                            throw new IOException("Interrupted by user");
+                        }
+                        res.addAll(listLocalDirectory(p.toUri().toURL(), filter, recursive));
+                    }
+                } else {
+                    URL candidate = p.toUri().toURL();
+                    if (filter.test(candidate)) {
+                        res.add(candidate);
+                    }
+                }
+            }
+            return res;
+        }
+    }
+
+    private static boolean isRelativeKnimeURL(final URL url) {
+        // either a workflow-relative URL that leaves the workflow or a mountpoint-relative URL
+        return (("knime.workflow".equals(url.getHost())) && url.getPath().startsWith("/../"))
+                || "knime.mountpoint".contentEquals(url.getHost());
     }
 
     private static final class ZipWrapper extends ZipOutputStream {

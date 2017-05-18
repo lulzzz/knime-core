@@ -58,7 +58,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -322,29 +321,26 @@ public final class DataCellToJavaConverterRegistry {
             return Arrays.asList(MissingToNullConverterFactory.getInstance());
         }
 
-        final LinkedBlockingQueue<Class<?>> classes = new LinkedBlockingQueue<>();
-        classes.add(sourceType.getPreferredValueClass());
-        classes.addAll(sourceType.getValueClasses());
-        classes.add(sourceType.getCellClass());
-
         final Collection<DataCellToJavaConverterFactory<? extends DataValue, D>> allFactories = new ArrayList<>();
 
-        while (!classes.isEmpty()) {
-            final Class<?> curClass = classes.poll();
-            // this conversion is fine, since we guarantee the correct type when
-            // inserting into the map.
+        for (final Class<? extends DataValue> curClass : sourceType.getValueClasses()) {
+            if (DataValue.class.equals(curClass)) {
+                // We need to defer DataValue.class to the very end, because these converters are usually very general and low
+                // priority (e.g. DataValue.toString() converter)
+                continue;
+            }
+
             final ArrayList<DataCellToJavaConverterFactory<?, ?>> factories =
                 m_converterFactories.get(new ConversionKey(curClass, destType));
-
             if (factories != null) {
                 allFactories.addAll((Collection<? extends DataCellToJavaConverterFactory<DataCell, D>>)factories);
             }
+        }
 
-            /* check if a supertype has a compatible converter factory */
-            classes.addAll(Arrays.asList(curClass.getInterfaces()));
-            if (curClass.getSuperclass() != null) {
-                classes.add(curClass.getSuperclass());
-            }
+        final ArrayList<DataCellToJavaConverterFactory<?, ?>> factories =
+            m_converterFactories.get(new ConversionKey(DataValue.class, destType));
+        if (factories != null) {
+            allFactories.addAll((Collection<? extends DataCellToJavaConverterFactory<DataCell, D>>)factories);
         }
 
         if (sourceType.isCollectionType() && destType.isArray()) {
@@ -416,7 +412,7 @@ public final class DataCellToJavaConverterRegistry {
      *         output type of elementFactory.
      * @param <DE> Destination element type
      * @param <D> Destination array type
-     * @since 3.3
+     * @since 3.4
      */
     public <DE, D> DataCellToJavaConverterFactory<CollectionDataValue, D>
         getCollectionConverterFactory(final DataCellToJavaConverterFactory<? extends DataValue, DE> elementFactory) {
@@ -513,6 +509,8 @@ public final class DataCellToJavaConverterRegistry {
 
         // register "Object -> String" and "MissingValue -> null" converters
         // with lowest priority
+        register(new SimpleDataCellToJavaConverterFactory<>(DataValue.class, String.class, (val) -> val.toString(),
+            "String (toString())"));
         register(new SimpleDataCellToJavaConverterFactory<>(MissingValue.class, Object.class, (val) -> null,
             "Object (Null)"));
     }

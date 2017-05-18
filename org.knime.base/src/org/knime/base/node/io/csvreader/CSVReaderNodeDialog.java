@@ -111,6 +111,7 @@ public final class CSVReaderNodeDialog extends NodeDialogPane {
             new FilesHistoryPanel(createFlowVariableModel(CSVReaderConfig.CFG_URL, FlowVariable.Type.STRING),
                 "csv_read", LocationValidation.FileInput, ".csv", ".txt");
         m_filePanel.setDialogType(JFileChooser.OPEN_DIALOG);
+        m_filePanel.setShowConnectTimeoutField(true);
 
         int col = 3;
         m_colDelimiterField = new JTextField("###", col);
@@ -186,6 +187,7 @@ public final class CSVReaderNodeDialog extends NodeDialogPane {
         gbc.gridy += 1;
         optionsPanel.add(getInFlowLayout(m_supportShortLinesChecker), gbc);
 
+        gbc.gridx = 0;
         gbc.gridy += 1;
         optionsPanel.add(getInFlowLayout(m_skipFirstLinesChecker), gbc);
         gbc.gridx += 1;
@@ -227,6 +229,7 @@ public final class CSVReaderNodeDialog extends NodeDialogPane {
         config.loadSettingsInDialog(settings);
         m_filePanel.updateHistory();
         m_filePanel.setSelectedFile(config.getLocation());
+        m_filePanel.setConnectTimeout(config.getConnectTimeout());
         m_colDelimiterField.setText(escape(config.getColDelimiter()));
         m_rowDelimiterField.setText(escape(config.getRowDelimiter()));
         m_quoteStringField.setText(config.getQuoteString());
@@ -280,6 +283,7 @@ public final class CSVReaderNodeDialog extends NodeDialogPane {
         FileReaderNodeSettings s = new FileReaderNodeSettings();
         m_encodingPanel.overrideSettings(s);
         config.setCharSetName(s.getCharsetName());
+        config.setConnectTimeout(m_filePanel.getConnectTimeout().orElse(null));
 
         config.saveSettingsTo(settings);
         m_filePanel.addToHistory();
