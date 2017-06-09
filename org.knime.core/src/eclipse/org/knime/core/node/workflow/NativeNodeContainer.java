@@ -419,7 +419,7 @@ public class NativeNodeContainer extends SingleNodeContainer {
                 } else {
                     setInternalState(InternalNodeContainerState.EXECUTINGREMOTELY);
                 }
-                IWriteFileStoreHandler fsh = initFileStore(getParent().getFileStoreHandlerRepository());
+                IWriteFileStoreHandler fsh = initFileStore(getParent().getFileStoreHandlerRepository(), false);
                 m_node.setFileStoreHandler(fsh);
                 break;
             default:
@@ -457,12 +457,16 @@ public class NativeNodeContainer extends SingleNodeContainer {
                 // ideally opening the file store handler would be done in "mimicRemoteExecuting" (consistently to
                 // performStateTransitionEXECUTING) but remote execution isn't split up that nicely - there is only
                 // pre-execute and executed
-                IWriteFileStoreHandler fsh = initFileStore(getParent().getFileStoreHandlerRepository());
+                IWriteFileStoreHandler fsh = initFileStore(getParent().getFileStoreHandlerRepository(), true);
                 m_node.setFileStoreHandler(fsh);
                 setInternalState(InternalNodeContainerState.PREEXECUTE);
                 break;
             case EXECUTED:
                 // ignore executed nodes
+                break;
+            case PREEXECUTE:
+                // already changed status. Possibly a loop start node whose LoopFileStoreHandler
+                // needed to be set.
                 break;
             default:
                 throwIllegalStateException();
@@ -653,7 +657,7 @@ public class NativeNodeContainer extends SingleNodeContainer {
         }
     }
 
-    private IWriteFileStoreHandler initFileStore(final WorkflowFileStoreHandlerRepository fileStoreHandlerRepository) {
+    private IWriteFileStoreHandler initFileStore(final WorkflowFileStoreHandlerRepository fileStoreHandlerRepository, final boolean remoteExecution) {
         final FlowObjectStack flowObjectStack = getFlowObjectStack();
         FlowLoopContext upstreamFLC = flowObjectStack.peek(FlowLoopContext.class);
         if (upstreamFLC == null) {
@@ -663,6 +667,28 @@ public class NativeNodeContainer extends SingleNodeContainer {
                 upstreamFLC = subnodeSC.getOuterFlowLoopContext();
             }
         }
+
+        // if this node is currently prepared for remote execution and is contained in a loop
+        // we have to make sure mimicRemotePreExecute was already called on the loop start node
+        // Otherwise the FileStoreHandler of the FlowLoopContext is still null (AP-7057)
+        if (remoteExecution && upstreamFLC != null) {
+            // we search for the start node. The project wfm should always contain the start node
+            NodeContainer startNode = getParent().getProjectWFM().findNodeContainer(upstreamFLC.getHeadNode());
+
+            assert startNode instanceof NativeNodeContainer &&
+                ((NativeNodeContainer) startNode).isModelCompatibleTo(LoopStartNode.class);
+            if (startNode.getInternalState() == InternalNodeContainerState.EXECUTED_MARKEDFOREXEC ||
+                    startNode.getInternalState() == InternalNodeContainerState.CONFIGURED_MARKEDFOREXEC ||
+                    startNode.getInternalState() == InternalNodeContainerState.UNCONFIGURED_MARKEDFOREXEC) {
+                // mimicRemotePreExecute wasn't called on the start node. Call it
+                startNode.mimicRemotePreExecute();
+            }
+            // Now we use the FlowLoopContext of the start node because this node might have a
+            // FlowLoopContext which isn't valid anymore. (This happens when this node is not
+            // configured)
+            upstreamFLC = ((NativeNodeContainer) startNode).getOutgoingFlowObjectStack().peek(FlowLoopContext.class);
+        }
+
         NodeID outerStartNodeID = upstreamFLC == null ? null : upstreamFLC.getHeadNode();
         // loop start nodes will put their loop context on the outgoing flow object stack
         assert !getID().equals(outerStartNodeID) : "Loop start on incoming flow stack can't be node itself";
