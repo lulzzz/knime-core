@@ -48,6 +48,7 @@ package org.knime.core.node.workflow;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -512,7 +513,7 @@ public abstract class WebResourceController {
                 continue;
             }
             try {
-                newViewValue.loadFromStream(new ByteArrayInputStream(entry.getValue().getBytes()));
+                newViewValue.loadFromStream(new ByteArrayInputStream(entry.getValue().getBytes(Charset.forName("UTF-8"))));
                 wizardNode.loadViewValue(newViewValue, useAsDefault);
                 if (useAsDefault) {
                     subNodeNC.getWorkflowManager().getNodeContainer(id, SingleNodeContainer.class, true).saveNodeSettingsToDefault();
@@ -559,7 +560,7 @@ public abstract class WebResourceController {
             }
             ValidationError validationError = null;
             try {
-                newViewValue.loadFromStream(new ByteArrayInputStream(entry.getValue().getBytes()));
+                newViewValue.loadFromStream(new ByteArrayInputStream(entry.getValue().getBytes(Charset.forName("UTF-8"))));
                 validationError = wizardNode.validateViewValue(newViewValue);
             } catch (Exception e) {
                 resultMap.put(entry.getKey(),
