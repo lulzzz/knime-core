@@ -49,8 +49,6 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Set;
@@ -121,7 +119,7 @@ final class OldToNewTimeNodeDialog extends NodeDialogPane {
             OldToNewTimeNodeModel.createZoneModelBool(typeModelBool, m_typeCombobox);
         m_dialogCompZoneBool = new DialogComponentBoolean(zoneModelBool, "Add time zone, if possible");
 
-        final SettingsModelString zoneSelectModel = OldToNewTimeNodeModel.createTimeZoneSelectModel(zoneModelBool);
+        final SettingsModelString zoneSelectModel = OldToNewTimeNodeModel.createTimeZoneSelectModel(zoneModelBool, m_typeCombobox);
         final Set<String> availableZoneIds = ZoneId.getAvailableZoneIds();
         final String[] availableZoneIdsArray = availableZoneIds.toArray(new String[availableZoneIds.size()]);
         Arrays.sort(availableZoneIdsArray);
@@ -219,22 +217,6 @@ final class OldToNewTimeNodeDialog extends NodeDialogPane {
          * add tab
          */
         addTab("Options", panel);
-
-        /*
-         * Change and action listeners
-         */
-
-        m_typeCombobox.addActionListener(new ActionListener() {
-
-            @Override
-            public void actionPerformed(final ActionEvent e) {
-                if (m_typeCombobox.getModel().getSelectedItem().equals(DateTimeType.ZONED_DATE_TIME)) {
-                    zoneSelectModel.setEnabled(true);
-                } else {
-                    zoneSelectModel.setEnabled(false);
-                }
-            }
-        });
     }
 
     /**

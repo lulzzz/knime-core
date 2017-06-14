@@ -56,8 +56,6 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import javax.swing.JComboBox;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 import org.knime.base.data.replace.ReplacedColumnsDataRow;
 import org.knime.core.data.DataCell;
@@ -127,14 +125,13 @@ final class OldToNewTimeNodeModel extends NodeModel {
 
     private final SettingsModelBoolean m_addZone = createZoneModelBool(m_autoType, null);
 
-    private final SettingsModelString m_timeZone = createTimeZoneSelectModel(m_addZone);
+    private final SettingsModelString m_timeZone = createTimeZoneSelectModel(m_addZone, null);
 
     private String m_selectedNewType;
 
     private DateTimeType[] m_newTypes = null;
 
     private boolean m_hasValidatedConfiguration = false;
-
 
     /** @return the column select model, used in both dialog and model. */
     @SuppressWarnings("unchecked")
@@ -171,16 +168,11 @@ final class OldToNewTimeNodeModel extends NodeModel {
     static SettingsModelBoolean createZoneModelBool(final SettingsModelBoolean typeModelBool,
         final JComboBox<DateTimeType> typeCombobox) {
         final SettingsModelBoolean zoneModelBool = new SettingsModelBoolean("zone_bool", false);
-        typeModelBool.addChangeListener(new ChangeListener() {
-
-            @Override
-            public void stateChanged(final ChangeEvent e) {
-                if (typeCombobox != null) {
-                    typeCombobox.setEnabled(!typeModelBool.getBooleanValue());
-                }
-                zoneModelBool.setEnabled(typeModelBool.getBooleanValue());
-                zoneModelBool.setEnabled(typeModelBool.getBooleanValue());
+        typeModelBool.addChangeListener(e -> {
+            if (typeCombobox != null) {
+                typeCombobox.setEnabled(!typeModelBool.getBooleanValue());
             }
+            zoneModelBool.setEnabled(typeModelBool.getBooleanValue());
         });
         return zoneModelBool;
     }
@@ -189,18 +181,25 @@ final class OldToNewTimeNodeModel extends NodeModel {
      * @param typeModelBool
      * @return the string select model, used in both dialog and model.
      */
-    static SettingsModelString createTimeZoneSelectModel(final SettingsModelBoolean zoneModelBool) {
+    static SettingsModelString createTimeZoneSelectModel(final SettingsModelBoolean zoneModelBool,
+        final JComboBox<DateTimeType> typeCombobox) {
         final SettingsModelString zoneSelectModel =
             new SettingsModelString("time_zone_select", ZoneId.systemDefault().getId());
         zoneSelectModel.setEnabled(false);
-        zoneModelBool.addChangeListener(new ChangeListener() {
-
-            @Override
-            public void stateChanged(final ChangeEvent e) {
-                zoneSelectModel.setEnabled(zoneModelBool.getBooleanValue());
-                zoneSelectModel.setEnabled(zoneModelBool.getBooleanValue());
+        zoneModelBool.addChangeListener(e -> {
+            if (typeCombobox != null) {
+                zoneSelectModel.setEnabled((zoneModelBool.getBooleanValue() && zoneModelBool.isEnabled())
+                    || (typeCombobox.getModel().getSelectedItem().equals(DateTimeType.ZONED_DATE_TIME)
+                        && !zoneModelBool.isEnabled()));
             }
         });
+        if (typeCombobox != null) {
+            typeCombobox.addActionListener(e -> {
+                zoneSelectModel.setEnabled((zoneModelBool.getBooleanValue() && zoneModelBool.isEnabled())
+                    || (typeCombobox.getModel().getSelectedItem().equals(DateTimeType.ZONED_DATE_TIME)
+                        && !zoneModelBool.isEnabled()));
+            });
+        }
         return zoneSelectModel;
     }
 
@@ -372,7 +371,9 @@ final class OldToNewTimeNodeModel extends NodeModel {
         m_autoType.saveSettingsTo(settings);
         m_addZone.saveSettingsTo(settings);
         m_timeZone.saveSettingsTo(settings);
-        settings.addString("newTypeEnum", m_selectedNewType);
+        if (m_selectedNewType != null) {
+            settings.addString("newTypeEnum", m_selectedNewType);
+        }
     }
 
     /**
@@ -399,7 +400,7 @@ final class OldToNewTimeNodeModel extends NodeModel {
         m_autoType.loadSettingsFrom(settings);
         m_addZone.loadSettingsFrom(settings);
         m_timeZone.loadSettingsFrom(settings);
-        m_selectedNewType = settings.getString("newTypeEnum");
+        m_selectedNewType = settings.getString("newTypeEnum", null);
         m_hasValidatedConfiguration = true;
     }
 
