@@ -4351,8 +4351,9 @@ public final class WorkflowManager extends NodeContainer implements NodeUIInform
     @Override
     void mimicRemotePreExecute() {
         try (WorkflowLock lock = lock()) {
+            HashSet<NodeID> alreadyCalled = new HashSet<>();
             for (NodeContainer nc : m_workflow.getNodeValues()) {
-                nc.mimicRemotePreExecute();
+                callMimicRemotePreExecuteOnNodeContainer(nc, alreadyCalled);
             }
             // do not propagate -- this method is called from parent
             lock.queueCheckForNodeStateChangeNotification(false);
@@ -4420,8 +4421,9 @@ public final class WorkflowManager extends NodeContainer implements NodeUIInform
         assert !isLocalWFM() : "Execution of metanode not allowed for locally executing (sub-)flows";
         try (WorkflowLock lock = lock()) {
             if (getInternalState().isExecutionInProgress()) {
+                HashSet<NodeID> alreadyCalled = new HashSet<>();
                 for (NodeContainer nc : m_workflow.getNodeValues()) {
-                    nc.mimicRemotePreExecute();
+                    callMimicRemotePreExecuteOnNodeContainer(nc, alreadyCalled);
                 }
                 // method is called from parent, don't propagate state changes
                 lock.queueCheckForNodeStateChangeNotification(false);
@@ -4481,6 +4483,60 @@ public final class WorkflowManager extends NodeContainer implements NodeUIInform
             }
             // allow failed nodes (IDLE) to be configured
             configureAllNodesInWFM(/*keepNodeMessage=*/true);
+        }
+    }
+
+    /**
+     * Calls {@link NodeContainer#mimicRemotePreExecute()} on the given node and all previous nodes in this
+     * workflow. For FileStore cells it is important that {@link NodeContainer#mimicRemotePreExecute()} is
+     * called in the order of the workflow. Therefore this function calls itself recursively until there is
+     * no previous node where {@link WorkflowManager#mimicRemotePreExecute()} isn't called.
+     * Additionally flow variables get propagated through the workflow even when nodes aren't configured,
+     * because in order to initialize FileStoreCells properly the most current flow variables are needed.
+     * (See AP-7057)
+     *
+     * @param nc the {@link NodeContainer} where {@link NodeContainer#mimicRemotePreExecute()} should be called.
+     * @param alreadyCalled a {@link HashSet} which contains all {@link NodeID} where we shouldn't call
+     * {@link NodeContainer#mimicRemotePreExecute()} because it was already called.
+     */
+    private void callMimicRemotePreExecuteOnNodeContainer(final NodeContainer nc, final HashSet<NodeID> alreadyCalled) {
+        if (!alreadyCalled.contains(nc.getID())) {
+            // We can't use assemblePredecessorOutPorts because if we get the nodes from the outports
+            // with #getConnectedNodeContainer we will get SingleNodeContainer inside metanodes and not
+            // the metanodes itself. It's the same with #assemblePredecessors
+
+            // Loop over all incoming connections
+            Set<ConnectionContainer> incoming = m_workflow.getConnectionsByDest(nc.getID());
+            ArrayList<FlowObjectStack> sos = new ArrayList<>();
+            for (ConnectionContainer conn : incoming) {
+                assert conn.getDest().equals(nc.getID());
+                int portIndex = conn.getSourcePort();
+                if (conn.getSource() != this.getID()) {
+                    // connected to another node inside this WFM
+                    assert conn.getType() == ConnectionType.STD;
+                    NodeContainer source = findNodeContainer(conn.getSource());
+                    // call recursively
+                    callMimicRemotePreExecuteOnNodeContainer(source, alreadyCalled);
+                    // Get the flow variables at this port
+                    sos.add(source.getOutPort(portIndex).getFlowObjectStack());
+                } else {
+                    // else the node is connected to a WorkflowInport we can
+                    // end the recursion here. But we still need the FlowObjectStack.
+                    assert conn.getType() == ConnectionType.WFMIN;
+                    NodeOutPort wfPort = getWorkflowIncomingPort(portIndex);
+                    sos.add(wfPort.getFlowObjectStack());
+                }
+            }
+
+            // Update the FLowObjectStack
+            if (nc instanceof SingleNodeContainer) {
+                createAndSetFlowObjectStackFor((SingleNodeContainer) nc,
+                    sos.toArray(new FlowObjectStack[sos.size()]));
+            }
+
+            // Call on this node
+            nc.mimicRemotePreExecute();
+            alreadyCalled.add(nc.getID());
         }
     }
 
