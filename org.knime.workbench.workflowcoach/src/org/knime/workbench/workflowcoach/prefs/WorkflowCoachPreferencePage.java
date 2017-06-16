@@ -208,7 +208,8 @@ public class WorkflowCoachPreferencePage extends PreferencePage implements IWork
                     m_updateButton.setEnabled(true);
                     m_lastUpdate.setText("Update failed.");
                     setErrorMessage(
-                        "Error loading the community node recommendations. Please check your internet connection.");
+                        "Error loading the community node recommendations. Maybe check your internet connection. Problem: "
+                            + e.get().getMessage());
                     if(!m_checkCommunityProvider.getSelection()) {
                         setValid(true);
                     }

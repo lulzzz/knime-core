@@ -92,20 +92,29 @@ public abstract class AbstractFileDownloadTripleProvider implements UpdatableNod
 
     private static final int TIMEOUT = 10000; //10 seconds
 
+    /**
+     * Name of the temporary file the download file is stored into before it is checked and renamed to the desired file
+     * name.
+     */
+    private static final String TMP_FILE_NAME = "file_download.temp";
+
     private final String m_url;
 
     private final Path m_file;
 
+    private final Path m_tmpFile;
+
     /**
      * Creates a new triple provider.
      *
-     * @param url the url to download the file from
+     * @param url the url to downloaded the file from
      * @param fileName the file name to store the downloaded nodes triples to - file name only, not a path!
      *
      */
     protected AbstractFileDownloadTripleProvider(final String url, final String fileName) {
         m_url = url;
         m_file = Paths.get(KNIMEConstants.getKNIMEHomeDir(), fileName);
+        m_tmpFile = Paths.get(KNIMEConstants.getKNIMEHomeDir(), TMP_FILE_NAME);
     }
 
     /**
@@ -128,7 +137,7 @@ public abstract class AbstractFileDownloadTripleProvider implements UpdatableNod
      * {@inheritDoc}
      */
     @Override
-    public void upate() throws Exception {
+    public void update() throws Exception {
         HttpClient client = new HttpClient();
         applyProxySettings(client, new URI(m_url));
         client.getHttpConnectionManager().getParams().setConnectionTimeout(TIMEOUT);
@@ -148,11 +157,29 @@ public abstract class AbstractFileDownloadTripleProvider implements UpdatableNod
         }
 
         //download and store the file
-        try (InputStream in = getInputStream(method); OutputStream out = Files.newOutputStream(m_file)) {
+        try (InputStream in = getInputStream(method); OutputStream out = Files.newOutputStream(m_tmpFile)) {
             IOUtils.copy(in, out);
         } finally {
             method.releaseConnection();
         }
+
+        //check the download and rename the file
+        try {
+            checkDownloadedFile(m_tmpFile);
+            m_tmpFile.toFile().renameTo(m_file.toFile());
+        } finally {
+            //delete temporary file
+            m_tmpFile.toFile().delete();
+        }
+    }
+
+    /**
+     * @param file the temporary file containing the downloaded data
+     * @throws Exception throws an exception with an explaining error message if something is wrong with the downloaded file
+     */
+    protected void checkDownloadedFile(final Path file) throws Exception {
+        //default implementation, no exception
+        //to be overridden by subclasses
     }
 
     /**

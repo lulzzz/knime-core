@@ -48,6 +48,9 @@
  */
 package org.knime.workbench.workflowcoach.data;
 
+import java.io.BufferedReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
@@ -65,6 +68,11 @@ import org.osgi.framework.FrameworkUtil;
 public class CommunityTripleProvider extends AbstractFileDownloadTripleProvider {
     private static final ScopedPreferenceStore PREFS = new ScopedPreferenceStore(InstanceScope.INSTANCE,
         FrameworkUtil.getBundle(CommunityTripleProvider.class).getSymbolicName());
+
+    /**
+     * A string to look for in the downloaded file to make sure that's the community recommendations.
+     */
+    private static final String INDICATOR_STRING = "KNIME Community recommendations";
 
     /**
      * Factory for {@link CommunityTripleProvider}s.
@@ -95,6 +103,24 @@ public class CommunityTripleProvider extends AbstractFileDownloadTripleProvider 
      */
     public CommunityTripleProvider() {
         super("http://www.knime.org/files/nodeguide/community_recommendations.json", "community_recommendations.json");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void checkDownloadedFile(final Path file) throws Exception {
+        BufferedReader br = Files.newBufferedReader(file);
+        int lineCount = 0;
+        for (String line = br.readLine(); line != null; line = br.readLine()) {
+            //the indicator string is expected to be in the second line (in case of json-pretty printing!)
+            if (lineCount == 1 && line.contains(INDICATOR_STRING)) {
+                return;
+            } else if (lineCount > 1) {
+                throw new RuntimeException("Downloaded file doesn't contain community recommendation data.");
+            }
+            lineCount++;
+        }
     }
 
     /**
