@@ -47,11 +47,14 @@
  */
 package org.knime.core.node.workflow.execresult;
 
+import java.util.Map;
+
 import org.knime.core.data.filestore.internal.IFileStoreHandler;
 import org.knime.core.internal.ReferencedFile;
 import org.knime.core.node.NodeContentPersistor;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
+import org.knime.core.node.workflow.FlowVariable;
 
 /**
  *
@@ -65,6 +68,7 @@ public class NodeExecutionResult implements NodeContentPersistor {
     private PortObjectSpec[] m_portObjectSpecs;
     private String m_warningMessage;
     private boolean m_needsResetAfterLoad;
+    private Map<String, FlowVariable> m_flowVariables;
 
     /**
      *
@@ -176,4 +180,19 @@ public class NodeExecutionResult implements NodeContentPersistor {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     * @since 3.4 */
+    @Override
+    public Map<String, FlowVariable> getFlowVariables() {
+        return m_flowVariables;
+    }
+
+    /**
+     * TODO write javadoc
+     * @param flowVariables
+     * @since 3.4 */
+    public void setFlowVariables(final Map<String, FlowVariable> flowVariables) {
+        m_flowVariables = flowVariables;
+    }
 }

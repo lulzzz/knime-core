@@ -58,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -354,6 +355,19 @@ public final class Node implements NodeModelWarningListener {
         }
         result.setPortObjects(pos);
         result.setPortObjectSpecs(poSpecs);
+
+        // Add the outgoing flow variables to the execution result
+        FlowObjectStack outgoingStack = m_model.getOutgoingFlowObjectStack();
+        Map<String, FlowVariable> availFlowVars = outgoingStack.getAvailableFlowVariables();
+        Map<String, FlowVariable> nodeFlowVars = new LinkedHashMap<String, FlowVariable>();
+        // We just take the flow variables with scope flow because the stack
+        // also contains global flow variables
+        for (Map.Entry<String, FlowVariable> entry : availFlowVars.entrySet()) {
+            if (entry.getValue().getScope().equals(FlowVariable.Scope.Flow)) {
+                nodeFlowVars.put(entry.getKey(), entry.getValue());
+            }
+        }
+        result.setFlowVariables(nodeFlowVars);
         return result;
     }
 
@@ -485,6 +499,31 @@ public final class Node implements NodeModelWarningListener {
                     } catch (IOException e) {
                         loadResult.addError(e.getMessage(), true);
                     }
+                }
+            }
+        }
+
+        // Push saved flow variables
+        Map<String, FlowVariable> flowVariables = loader.getFlowVariables();
+        if (flowVariables != null) {
+            for (Map.Entry<String, FlowVariable> entry : flowVariables.entrySet()) {
+                FlowVariable variable = entry.getValue();
+                switch (variable.getType()) {
+                    case DOUBLE:
+                        m_model.pushFlowVariableDouble(
+                            entry.getKey(), variable.getDoubleValue());
+                        break;
+                    case INTEGER:
+                        m_model.pushFlowVariableInt(
+                            entry.getKey(), variable.getIntValue());
+                        break;
+                    case STRING:
+                        m_model.pushFlowVariableString(
+                            entry.getKey(), variable.getStringValue());
+                        break;
+                    default:
+                        m_logger.assertLog(false, "Flow variable of type " + variable.getType() + " shouldn't be saved");
+                        break;
                 }
             }
         }

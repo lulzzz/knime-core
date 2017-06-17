@@ -47,10 +47,13 @@
  */
 package org.knime.core.node;
 
+import java.util.Map;
+
 import org.knime.core.data.filestore.internal.IFileStoreHandler;
 import org.knime.core.internal.ReferencedFile;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
+import org.knime.core.node.workflow.FlowVariable;
 import org.knime.core.node.workflow.WorkflowPersistor.LoadResult;
 
 /**
@@ -158,6 +161,14 @@ public class CopyNodePersistor implements NodePersistor {
      * @since 2.6*/
     @Override
     public IFileStoreHandler getFileStoreHandler() {
+        return null;
+    }
+
+    /**
+     * Returns null because this doesn't contain flow variables.
+     * @since 3.4 */
+    @Override
+    public Map<String, FlowVariable> getFlowVariables() {
         return null;
     }
 

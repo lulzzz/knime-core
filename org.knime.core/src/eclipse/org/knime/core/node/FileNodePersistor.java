@@ -94,6 +94,7 @@ import org.knime.core.node.util.CheckUtils;
 import org.knime.core.node.workflow.FileNativeNodeContainerPersistor;
 import org.knime.core.node.workflow.FileWorkflowPersistor;
 import org.knime.core.node.workflow.FileWorkflowPersistor.LoadVersion;
+import org.knime.core.node.workflow.FlowVariable;
 import org.knime.core.node.workflow.NativeNodeContainer;
 import org.knime.core.node.workflow.NodeContext;
 import org.knime.core.node.workflow.WorkflowLoadHelper;
@@ -1491,6 +1492,14 @@ public class FileNodePersistor implements NodePersistor {
 
     static void saveCustomName(final Node node, final NodeSettingsWO settings) {
         settings.addString(CFG_NAME, node.getName());
+    }
+
+    /**
+     * {@inheritDoc}
+     * @since 3.4 */
+    @Override
+    public Map<String, FlowVariable> getFlowVariables() {
+        return null;
     }
 
 }

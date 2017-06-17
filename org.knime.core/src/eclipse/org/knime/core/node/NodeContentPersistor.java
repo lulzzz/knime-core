@@ -47,10 +47,13 @@
  */
 package org.knime.core.node;
 
+import java.util.Map;
+
 import org.knime.core.data.filestore.internal.IFileStoreHandler;
 import org.knime.core.internal.ReferencedFile;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
+import org.knime.core.node.workflow.FlowVariable;
 
 /**
  *
@@ -76,4 +79,7 @@ public interface NodeContentPersistor {
     IFileStoreHandler getFileStoreHandler();
     String getWarningMessage();
 
+    // TODO add javadoc
+    /** @since 3.4 */
+    Map<String, FlowVariable> getFlowVariables();
 }
